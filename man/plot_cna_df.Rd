@@ -7,10 +7,14 @@
 plot_cna_df(cna_df, cum_sum_add, cna_max = 8)
 }
 \arguments{
-\item{in_list}{of data from Facets}
+\item{cna_df}{data frame created in facets_cna_consensus()}
+
+\item{cum_sum_add}{data_frame created in seqlengths_df()}
+
+\item{cna_max}{max CNA call to plot (eveything else is squashed to this}
 }
 \value{
-purity-ploidy dataframe, also write rds used
+purity-ploidy dataframe, also write rds outputs
 }
 \description{
 Processing list of Facets input

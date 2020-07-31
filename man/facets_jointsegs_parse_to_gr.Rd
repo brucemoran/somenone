@@ -13,7 +13,16 @@ facets_jointsegs_parse_to_gr(
 )
 }
 \arguments{
-\item{a}{string either "hg19" or "hg38"}
+\item{jointsegs_in}{filename (output from Facets) with columns:
+"seg", "num.mark", "nhet", "cnlr.median", "mafR", "segclust", "cnlr.median.clust", "mafR.clust", "cf.em", "tcn.em", "lcn.em"}
+
+\item{which_genome}{the genome assembly used, "hg19" or "hg38"}
+
+\item{cgc_gr}{GRanges object of cancer gene census from COSMIC}
+
+\item{anno}{annotation strategy, "ENS" or "CGC"}
+
+\item{bsgenome}{which version of bsgenome to use}
 }
 \value{
 a GRanges object with annotated jointsegs from input

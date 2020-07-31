@@ -7,9 +7,9 @@
 vcf_parse_gr(vcf_in, germline_id)
 }
 \arguments{
-\item{germline_id}{ID for germline_id sample}
+\item{vcf_in}{VCF path input}
 
-\item{in_vec}{vector input}
+\item{germline_id}{ID for germline_id sample}
 }
 \value{
 vector of single-letter HGVS protein IDs

@@ -2,8 +2,7 @@
 % Please edit documentation in R/somenone_variantconsensus.R
 \name{write_consensus_all}
 \alias{write_consensus_all}
-\title{Return overlapping variants for all samples
-write VCF for PCGR based on example BRCA VCF from Github}
+\title{Return overlapping variants for all samples}
 \usage{
 write_consensus_all(plot_list, plot_df, tag, included_order, cons)
 }
@@ -14,12 +13,13 @@ write_consensus_all(plot_list, plot_df, tag, included_order, cons)
 
 \item{tag}{is a string used to tag output files}
 
-\item{samp}{is the sample being operated on}
+\item{included_order}{ordering of samples for plotting}
+
+\item{cons}{string to define consensus (shared or all)}
 }
 \value{
 GRanges object of all  of single-letter HGVS protein IDs
 }
 \description{
 Return overlapping variants for all samples
-write VCF for PCGR based on example BRCA VCF from Github
 }

@@ -11,7 +11,6 @@ facets_cna_call <- function(input_csv){
   tumour <- stringr::str_split(input_csv, "\\.")[[1]][1]
   set.seed(1234)
   snpmat <- facets::readSnpMatrix(input_csv)
-
   pps <- facets::preProcSample(snpmat)
   oo <- facets::procSample(pps)
   fit <- facets::emcncf(oo)
@@ -19,9 +18,9 @@ facets_cna_call <- function(input_csv){
                            PURITY = round(fit$purity, digits=3))
   readr::write_tsv(ploidpurdf, path = paste0(tumour,".fit_ploidy-purity.tsv"))
   readr::write_tsv(round(fit$cncf, 3), path = paste0(tumour,".fit_cncf-jointsegs.tsv"))
-  pdf(paste0(tumour, ".facets_CNA.pdf"))
+  grDevices::pdf(paste0(tumour, ".facets_CNA.pdf"))
     facets::plotSample(x = oo, emfit = fit, plot.type = "both", sname = tumour)
-  dev.off()
+  grDevices::dev.off()
 }
 
 #' Consensus CNA estimation and plotting with Facets input
@@ -41,7 +40,7 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
 
   ##set genome assembly version based on dictfile
   which_genome <- "19"
-  if(length(grep("38", dict))==1) {
+  if(length(grep("38", dict_file))==1) {
     which_genome <- "38"
   }
 
@@ -49,7 +48,7 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
   cgc <- c()
   cgc_gr <- GenomicRanges::GRanges()
   if(! is.null(cgc_bed)){
-    cgc <- read.table(cgc_bed)
+    cgc <- utils::read.table(cgc_bed)
     cgc_gr <-GenomicRanges::GRanges(seqnames = cgc[,1],
                                     ranges = IRanges::IRanges(cgc[,2], cgc[,3]),
                                     CGC_gene = cgc[,4])
@@ -57,7 +56,7 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
 
   ##set input list based on file pattern
   in_list <- as.list(dir(pattern = pattern))
-  pp_list <- process_in_list(in_list)
+  pp_list <- process_in_list(in_list, which_genome)
 
   ##load set of RData GRanges created above into GRangesList
   gr_in <- dir(pattern = ".RData$")
@@ -86,13 +85,13 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
   for(x in 1:length(samples)){
     if(length(cna_list[[x]])>0){
       cna_dfb <- as.data.frame(cna_list[[x]], row.names = seq(1:length(cna_list[[1]])))
-      cna_dfb$purity <- unlist(rep(pLoad[[x]][2], length(cna_dfb[,1])))
-      cna_dfb$ploidy <- unlist(rep(pLoad[[x]][1], length(cna_dfb[,1])))
+      cna_dfb$purity <- unlist(rep(pp_list[[x]][2], length(cna_dfb[,1])))
+      cna_dfb$ploidy <- unlist(rep(pp_list[[x]][1], length(cna_dfb[,1])))
       cna_dfb$sampleID <- samples[x]
       cna_df <- rbind(cna_df, cna_dfb)
-      write.table(cna_df, file=paste0(samples[x],".facets.CNA.jointsegs.tab"), quote=FALSE,sep="\t",col=TRUE)
+      utils::write.table(cna_df, file=paste0(samples[x],".facets.CNA.jointsegs.tab"), quote=FALSE,sep="\t",col=TRUE)
     } else {
-      write.table(as.data.frame(cna_list[[x]]), file=paste0(samples[x],".facets.CNA.jointsegs.tab"), quote=FALSE,sep="\t",col=TRUE)
+      utils::write.table(as.data.frame(cna_list[[x]]), file=paste0(samples[x],".facets.CNA.jointsegs.tab"), quote=FALSE,sep="\t",col=TRUE)
     }
   }
 
@@ -115,20 +114,22 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
   } else {
     cna_df_sample_intersect <- facets_list
   }
-  write_tsv(cna_df_sample_intersect,
+  readr::write_tsv(cna_df_sample_intersect,
             file = paste0(tag,".facets_consensus.CNA.tsv"))
 
   ##plotting
   ggp <- plot_cna_df(cna_df, cum_sum_add, cna_max = 8)
-  ggsave(filename = paste0(tag, ".facets_consensus.call.pdf"), plot = ggp)
+  ggplot2::ggsave(filename = paste0(tag, ".facets_consensus.call.pdf"), plot = ggp)
 }
 
 #' Processing list of Facets input
 #' @param in_list of data from Facets
+#' @param which_genome genoem assembly being used "hg19" or "hg38"
+#' @param cgc_bed bedfile of cancer gene census from COSMIC
 #' @return purity-ploidy dataframe, also write rds used
 #' @export
 
-process_in_list <- function(in_list){
+process_in_list <- function(in_list, which_genome, cgc_bed = NULL){
 
   ##iterate over samples
   for(samp in 1:length(in_list)){
@@ -138,8 +139,8 @@ process_in_list <- function(in_list){
 
     ##also read and store ploidy:
     ploidypurity <- dir(pattern = paste0(in_name, ".fit_ploidy-purity.tab"))
-    ploidy <- as.vector(read.table(ploidypurity)[2,1])
-    purity <- as.vector(read.table(ploidypurity)[2,2])
+    ploidy <- as.vector(utils::read.table(ploidypurity)[2,1])
+    purity <- as.vector(utils::read.table(ploidypurity)[2,2])
     pp_df <- data.frame(PLOIDY = ploidy, PURITY = purity)
 
     print(paste0("Working on: ", in_name))
@@ -168,9 +169,12 @@ process_in_list <- function(in_list){
 }
 
 #' Parse jointsegs into GRanges object
-#' @param a jointsegs filename (output from Facets) with columns:
+#' @param jointsegs_in filename (output from Facets) with columns:
 #'    "seg", "num.mark", "nhet", "cnlr.median", "mafR", "segclust", "cnlr.median.clust", "mafR.clust", "cf.em", "tcn.em", "lcn.em"
-#' @param a string either "hg19" or "hg38"
+#' @param which_genome the genome assembly used, "hg19" or "hg38"
+#' @param cgc_gr GRanges object of cancer gene census from COSMIC
+#' @param anno annotation strategy, "ENS" or "CGC"
+#' @param bsgenome which version of bsgenome to use
 #' @return a GRanges object with annotated jointsegs from input
 #' @export
 
@@ -195,7 +199,7 @@ facets_jointsegs_parse_to_gr <- function(jointsegs_in, which_genome, cgc_gr = NU
   }
 
   ##read input
-  js <- read.table(jointsegs_in, header=T)
+  js <- utils::read.table(jointsegs_in, header=T)
 
   ##convert chr23 -> X
   js$chrom[js$chrom == 23] <- "X"
@@ -276,15 +280,17 @@ facets_jointsegs_parse_to_gr <- function(jointsegs_in, which_genome, cgc_gr = NU
 
 seqlengths_df <- function(in_seqs, dict_file, which_genome){
 
+  V1 <- V3 <- V4 <- V5 <- seqnames <- NULL
+
   ##create centromere data
   url19 <- paste0("http://hgdownload.cse.ucsc.edu/goldenpath/hg19/database/cytoBand.txt.gz")
   url38 <- paste0("http://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/cytoBand.txt.gz")
   temp19 <- tempfile()
-  download.file(url19, temp19)
-  centroms19 <- as_tibble(read.table(temp19))
+  utils::download.file(url19, temp19)
+  centroms19 <- tibble::as_tibble(utils::read.table(temp19))
   temp38 <- tempfile()
-  download.file(url38, temp38)
-  centroms38 <- as_tibble(read.table(temp38, fill=TRUE))
+  utils::download.file(url38, temp38)
+  centroms38 <- tibble::as_tibble(utils::read.table(temp38, fill=TRUE))
 
   centromeres <- function(chr, which_genome){
     if(which_genome == "hg19"){
@@ -293,7 +299,7 @@ seqlengths_df <- function(in_seqs, dict_file, which_genome){
       centrom <- centroms38
     }
     centrout <- dplyr::mutate(centrom, seqnames = gsub("chr", "", V1))
-    centrout <- dplyr::select(centrout, seqnames, -V1, everything())
+    centrout <- dplyr::select(centrout, seqnames, -V1, dplyr::everything())
     centrout <- dplyr::filter(centrout, V5 %in% "acen")
     centrout <- dplyr::filter(centrout, V4 %in% grep("p11", V4, value=T))
     centrout <- dplyr::filter(centrout, seqnames %in% chr)
@@ -302,7 +308,7 @@ seqlengths_df <- function(in_seqs, dict_file, which_genome){
   }
 
   ##parse dict
-  dict_seqs <- read.table(dict_file, skip=1)
+  dict_seqs <- utils::read.table(dict_file, skip=1)
   seqlengths <- data.frame(seqnames = gsub("SN:","", dict_seqs[,2]),
                            start = 1,
                            end = as.numeric(gsub("LN:","", dict_seqs[,3])))
@@ -314,7 +320,7 @@ seqlengths_df <- function(in_seqs, dict_file, which_genome){
   ## make centromere data from function
   ##load centromere
   centromere <- centromeres(seqlengths[,1], which_genome)
-  seqlengths <- left_join(seqlengths, centromere, by="seqnames")
+  seqlengths <- dplyr::left_join(seqlengths, centromere, by="seqnames")
 
   ##non-numeric chr IDs are numeric as rownames!
   ##need to output a table to convert between inSeqs and newSeqs
@@ -326,11 +332,15 @@ seqlengths_df <- function(in_seqs, dict_file, which_genome){
 }
 
 #' Processing list of Facets input
-#' @param in_list of data from Facets
-#' @return purity-ploidy dataframe, also write rds used
+#' @param cna_df data frame created in facets_cna_consensus()
+#' @param cum_sum_add data_frame created in seqlengths_df()
+#' @param cna_max max CNA call to plot (eveything else is squashed to this
+#' @return purity-ploidy dataframe, also write rds outputs
 #' @export
 
 plot_cna_df <- function(cna_df, cum_sum_add, cna_max = 8){
+
+  plot_start <- plot_end <- cna_call <- minor_call <- purity <- ploidy <- diploid <- colour <- sample <- seqlength <- cum_sum_0 <- cum_sum_centro <- NULL
 
   ##set maximum plotted CNA
   cna_maxd <- cna_df$Total_Copy_Number
@@ -346,7 +356,7 @@ plot_cna_df <- function(cna_df, cum_sum_add, cna_max = 8){
 
   ##plot data.frame
   plot_df <- data.frame(row.names=seq(from = 1,to = dim(cna_df)[1], by = 1),
-                        seqnames=cna_df[,1],
+                        seqnames = cna_df[,1],
                         plot_start = cna_df[,2] + (cum_sum_add - 1),
                         plot_end = (cna_df[,3] - 1) + cum_sum_add,
                         cna_call = as.numeric(cna_maxd),
@@ -354,57 +364,57 @@ plot_cna_df <- function(cna_df, cum_sum_add, cna_max = 8){
                         purity = round(as.numeric(cna_df$purity)),
                         ploidy = round(as.numeric(cna_df$ploidy)),
                         diploid = 2,
-                        colour = mapvalues(cna_maxd, cnames, colz),
+                        colour = plyr::mapvalues(cna_maxd, cnames, colz),
                         sample = unlist(cna_df$sampleID))
 
     ##plot
-    ggp <- ggplot() +
-            geom_hline(data = plot_df,
-                  aes(yintercept = ploidy),
+    ggp <- ggplot2::ggplot() +
+            ggplot2::geom_hline(data = plot_df,
+                  ggplot2::aes(yintercept = ploidy),
                       linetype = 1,
                       color = "purple",
                       size = 0.5) +
-            geom_hline(data = plot_df,
-                  aes(yintercept = diploid),
+            ggplot2::geom_hline(data = plot_df,
+                  ggplot2::aes(yintercept = diploid),
                       linetype = 1,
                       color = "orange",
                       size = 0.5) +
-            geom_vline(data = seqlength,
-                       aes(xintercept = cum_sum_0),
+            ggplot2::geom_vline(data = seqlength,
+                       ggplot2::aes(xintercept = cum_sum_0),
                        linetype = 1,
                        color = "dodgerblue",
                        size = 0.2) +
-            geom_vline(data = seqlength,
-                       aes(xintercept = cum_sum_centro),
+            ggplot2::geom_vline(data = seqlength,
+                       ggplot2::aes(xintercept = cum_sum_centro),
                        linetype = 4,
                        color = "grey",
                        size = 0.2) +
-            geom_segment(data = plot_df,
-                      aes(x = plot_start,
+            ggplot2::geom_segment(data = plot_df,
+                      ggplot2::aes(x = plot_start,
                        xend = plot_end,
                        y = cna_call,
                        yend = cna_call,
                        colour = colour,
                        size = 4.5)) +
-            scale_colour_identity() +
-            geom_segment(data = plot_df,
-                      aes(x = plot_start,
+            ggplot2::scale_colour_identity() +
+            ggplot2::geom_segment(data = plot_df,
+                      ggplot2::aes(x = plot_start,
                        xend = plot_end,
                        y = minor_call,
                        yend = minor_call,
                        colour = "forestgreen",
                        size = 2)) +
-            scale_x_continuous(name = "Chromosome",
+            ggplot2::scale_x_continuous(name = "Chromosome",
                        labels = as.vector(seqlength$seqnames),
                        breaks = seqlength$cum_sum_centro) +
-            scale_y_continuous(name = "Total CNA (facets tcn.em)",
+            ggplot2::scale_y_continuous(name = "Total CNA (facets tcn.em)",
                        labels = seq(from = 0, to = max(cna_maxd), by = 1),
                        breaks = seq(from = 0, to = max(cna_maxd), by = 1),
                        limits = c(0, max(cna_maxd))) +
-            theme(axis.text.x = element_text(size = 5),
-                       panel.grid.major = element_blank(),
-                       panel.grid.minor = element_blank(),
+            ggplot2::theme(axis.text.x = ggplot2::element_text(size = 5),
+                       panel.grid.major = ggplot2::element_blank(),
+                       panel.grid.minor = ggplot2::element_blank(),
                        legend.position="none") +
-            facet_grid(sample ~ .)
+            ggplot2::facet_grid(sample ~ .)
     return(ggp)
 }

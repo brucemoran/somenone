@@ -12,6 +12,8 @@ plot_consensus_single(plot_list, raw_list, tag, included_order)
 \item{raw_list}{is a nested list of raw calls [[caller]][[samples1..n]]}
 
 \item{tag}{is a string to tag output files}
+
+\item{included_order}{ordering of samples for plotting}
 }
 \value{
 data.frame object of raw variant call allele frequencies

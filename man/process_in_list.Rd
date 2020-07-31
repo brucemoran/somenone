@@ -4,10 +4,14 @@
 \alias{process_in_list}
 \title{Processing list of Facets input}
 \usage{
-process_in_list(in_list)
+process_in_list(in_list, which_genome, cgc_bed = NULL)
 }
 \arguments{
 \item{in_list}{of data from Facets}
+
+\item{which_genome}{genoem assembly being used "hg19" or "hg38"}
+
+\item{cgc_bed}{bedfile of cancer gene census from COSMIC}
 }
 \value{
 purity-ploidy dataframe, also write rds used

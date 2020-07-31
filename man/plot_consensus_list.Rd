@@ -16,7 +16,7 @@ plot_consensus_list(plot_list, raw_list, tag, included_order)
 \item{included_order}{oredering of samples for plotting}
 }
 \value{
-
+none, plots PDF and writes out tsv files
 }
 \description{
 Create plot of shared variants among samples

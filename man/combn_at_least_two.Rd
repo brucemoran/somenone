@@ -9,6 +9,8 @@ combn_at_least_two(var_list, gr_super, callers, samp, tag)
 \arguments{
 \item{var_list}{is a nested list of [[caller]][[samples1..n]]}
 
+\item{gr_super}{is a GRanges superset from gr_super_set()}
+
 \item{callers}{are the named variant callers}
 
 \item{samp}{is the sample being operated on}

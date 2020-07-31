@@ -5,12 +5,14 @@
 \title{Produce a list of bedpe, from a list of breakpoint GRanges,
    with score > qual_filt and both breakpoints within annotated genes}
 \usage{
-gridss_bedpe_list(bpgr_list, qual_filt)
+gridss_bedpe_list(bpgr_list, qual_filt, which_genome)
 }
 \arguments{
 \item{bpgr_list}{list of per-sample breakpont GRanges objects}
 
 \item{qual_filt}{qulaity score filter above which is returned}
+
+\item{which_genome, }{genome assembly used ("hg19", "hg38")}
 }
 \value{
 filtered bedpe list

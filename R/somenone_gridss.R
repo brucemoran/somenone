@@ -10,6 +10,7 @@
 gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
 
   options(stringsAsFactors = FALSE)
+  sampleID <- num_rows <- qualscore <- vars <- bedpe_list_filter <- n <- NULL
 
   ##set genome as hg19 unless spec'd
   if (is.null(which_genome)){
@@ -48,7 +49,7 @@ gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
 
   ##lapply to paste sampleIDs, colour by combinations therein
   sample_rec_list <- lapply(1:dim(bedpe_rb_rec)[1], function(f){
-    lj <- left_join(bedpe_rb_rec[f,],
+    lj <- dplyr::left_join(bedpe_rb_rec[f,],
               bedpe_rb,
               by=c("start1" = "start1",
                    "end1" = "end1",
@@ -64,7 +65,7 @@ gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
   bedpe_rb_rec$sampleID <- unlist(sample_rec_list)
 
   ##colour in based on samples with SV
-  colz_rec <- rainbow(n = length(table(unlist(sample_rec_list))))
+  colz_rec <- grDevices::rainbow(n = length(table(unlist(sample_rec_list))))
   names(colz_rec) <- names(table(unlist(sample_rec_list)))
   bedpe_rb_rec$colour <- colz_rec[match(bedpe_rb_rec$sampleID, names(colz_rec))]
 
@@ -75,7 +76,7 @@ gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
   bedpe_rb_pri <- dplyr::filter(bedpe_rb_pri, num_rows == 1)
   bedpe_rb_pri <- dplyr::ungroup(bedpe_rb_pri)
   bedpe_rb_pri <- dplyr::select(bedpe_rb_pri, -num_rows)
-  colz_pri <- rainbow(n = length(table(unlist(bedpe_rb_pri$sampleID))))
+  colz_pri <- grDevices::rainbow(n = length(table(unlist(bedpe_rb_pri$sampleID))))
   names(colz_pri) <- names(table(unlist(bedpe_rb_pri$sampleID)))
   bedpe_rb_pri$colour <- colz_pri[match(bedpe_rb_pri$sampleID, names(colz_pri))]
 
@@ -86,10 +87,13 @@ gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
 #'    with score > qual_filt and both breakpoints within annotated genes
 #' @param bpgr_list list of per-sample breakpont GRanges objects
 #' @param qual_filt qulaity score filter above which is returned
+#' @param which_genome, genome assembly used ("hg19", "hg38")
 #' @return filtered bedpe list
 #' @export
 
-gridss_bedpe_list <- function(bpgr_list, qual_filt) {
+gridss_bedpe_list <- function(bpgr_list, qual_filt, which_genome) {
+
+  start <- end <- vcf_list <- symbol1 <- symbol2 <- NULL
 
   bedpe_list_filter <- lapply(seq_along(bpgr_list), function(f){
 
@@ -98,7 +102,7 @@ gridss_bedpe_list <- function(bpgr_list, qual_filt) {
 
     ##remove non-found partners!
     pairs <- StructuralVariantAnnotation::breakpointgr2pairs(gr)
-    grp <- gr[names(gr) %in% mcols(pairs)[,"name"]]
+    grp <- gr[names(gr) %in% S4Vectors::mcols(pairs)[,"name"]]
     gr_partner <- gr[names(gr) %in% grp$partner,]
 
     ##force into only 1:22, X
@@ -153,23 +157,13 @@ gridss_annotate_gr <- function(gr, which_genome) {
                                                     ignore.strand=TRUE))
   hits$SYMBOL <- suppressMessages(biomaRt::select(org.Hs.eg.db::org.Hs.eg.db,
                               gns[hits$subjectHits]$gene_id, "SYMBOL")$SYMBOL)
-  hits$gene_strand <- as.character(strand(gns[hits$subjectHits]))
+  hits$gene_strand <- as.character(BiocGenerics::strand(gns[hits$subjectHits]))
 
   ##add annotation to grp
   gr$SYMBOL <- gr$geneStrand <- ""
   gr$SYMBOL[hits$queryHits] <- hits$SYMBOL
   gr$geneStrand[hits$queryHits] <- hits$gene_strand
 
-  # require the breakpoint to be between different genes
-  # grp <- grp[grp$SYMBOL != partner(grp)$SYMBOL & !is.na(grp$SYMBOL) & !is.na(partner(grp)$SYMBOL),]
-  # grp <- grp[grp$SYMBOL != "" & partner(grp)$SYMBOL != "" & !is.na(grp$SYMBOL) & !is.na(partner(grp)$SYMBOL),]
-
-  # require the breakpoint to possibly generate a fusion transcript
-  # grp$couldBeThreePrimeStart <- stringr::str_detect(grp$geneStrand,
-  #                                   stringr::fixed(as.character(strand(grp))))
-  # grp$couldBeFivePrimeEnd <- stringr::str_detect(grp$geneStrand,
-  #            stringr::fixed(ifelse(as.character(strand(grp))=="+", "-", "+")))
-  # grp <- grp[(grp$couldBeThreePrimeStart & partner(grp)$couldBeFivePrimeEnd) | (grp$couldBeFivePrimeEnd & partner(grp)$couldBeThreePrimeStart),]
   return(gr)
 }
 
@@ -204,7 +198,7 @@ plot_circos_sv <- function(input_df, which_genome, pdf_path){
 
     ##actual OmicCircos plotting function
     pcfoc_func <- function(input_df, which_genome, label_df) {
-      plot(c(1,800) , c(1,800) , type="n", axes=FALSE, xlab="", ylab="")
+      graphics::plot(c(1,800) , c(1,800) , type="n", axes=FALSE, xlab="", ylab="")
       OmicCircos::circos(R = 248,
                          cir = which_genome,
                          type="chr",
@@ -233,14 +227,14 @@ plot_circos_sv <- function(input_df, which_genome, pdf_path){
        input_df$colour[match(f, input_df$sampleID)]
      }))
 
-     pdf(pdf_path, width = 9, height = 9)
-     par(mar=c(2,2,2,2))
+     grDevices::pdf(pdf_path, width = 9, height = 9)
+     graphics::par(mar=c(2,2,2,2))
      pcfoc_func(input_df, which_genome, label_df)
      grid::grid.newpage()
-     legend(200, 500,
+     graphics::legend(200, 500,
             legend = nms,
             col = colz,
             lty=1, lwd=2)
-     dev.off()
+     grDevices::dev.off()
   }
 }

@@ -10,6 +10,8 @@ at_least_two(var_list, gr_super, tag)
 \item{var_list}{is a nested list of [[caller]][[samples1..n]]}
 
 \item{gr_super}{is a GRanges superset from gr_super_set()}
+
+\item{tag}{is a string used to tag output files}
 }
 \value{
 GRanges object of consensus per sample

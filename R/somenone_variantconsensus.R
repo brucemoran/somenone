@@ -12,7 +12,7 @@
 
 variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "raw.vcf", included_order = NULL, name_callers = NULL, tag = NULL) {
 
-  options(stringAsFactors=FALSE)
+  options(stringAsFactors = FALSE)
 
   ##parse VCFs
   ##all should exist in current dir, all output to same dir
@@ -153,7 +153,7 @@ rdata_gr_list <- function(in_vec, germline_id, callers, out_ext, raw_vcf_pattern
 
 #' Parses for VCFs into GRanges object
 #'
-#' @param in_vec vector input
+#' @param vcf_in VCF path input
 #' @param germline_id ID for germline_id sample
 #' @return vector of single-letter HGVS protein IDs
 #' @export
@@ -183,14 +183,14 @@ vcf_parse_gr <- function(vcf_in, germline_id){
     return(som)
   } else {
     print("No variants found")
-    return(GRanges())
+    return(GenomicRanges::GRanges())
   }
 }
 
 #' Parses for VCFs annotated by VEP into GRanges object
 #'    takes CANONICAL annotation or first if no CANONICAL
 #'
-#' @param in_vec vector input
+#' @param vcf_in VCF path input
 #' @param germline_id ID for germline_id sample
 #' @return vector of single-letter HGVS protein IDs
 #' @export
@@ -244,7 +244,7 @@ vcf_vep_ann_parse_soma_gr  <- function(vcf_in, germline_id){
   }
   else{
     print("No variants found")
-    return(GRanges())
+    return(GenomicRanges::GRanges())
   }
 }
 
@@ -273,30 +273,30 @@ gr_super_set <- function(var_list, name_callers, impacts){
   samps <-  names(var_list[[1]])
 
   ##read first entry
-  callr_1 <- var_list[[name_callers[1]]]
-  callr_2 <- var_list[[name_callers[2]]]
+  call_1 <- var_list[[name_callers[1]]]
+  call_2 <- var_list[[name_callers[2]]]
 
   #exclude MT, GL
   seqwant <- c(seq(from=1, to=22, by=1), "X")
 
-  ##iterate over samples in callr_1, callr_2 (calls from the two named callers)
+  ##iterate over samples in call_1, call_2 (calls from the two named callers)
   ##in the same sample
-  if(length(callr_1) > 1){
-    for (x in seq_along(callr_1)){
-      print(paste0("Working on: ", names(callr_1)[x]))
+  if(length(call_1) > 1){
+    for (x in seq_along(call_1)){
+      print(paste0("Working on: ", names(call_1)[x]))
 
-      calls_1 <- callr_1[[x]]
-      calls_2 <- callr_2[[x]]
+      calls_1 <- call_1[[x]]
+      calls_2 <- call_2[[x]]
       GenomeInfoDb::seqlevels(calls_1, pruning.mode = "coarse") <- seqwant
       GenomeInfoDb::seqlevels(calls_2, pruning.mode = "coarse") <- seqwant
 
       ##test all wanted mcols exist, rename if "VF" not "AF" (Pisces)
       for(y in 1:2){
-        if(length(mcols_want[mcols_want %in% names(S4Vectors::mcols(callr_1[[y]]))]) != length(mcols_want)){
-          gsub("VF","AF", names(S4Vectors::mcols(callr_1[[y]])))
+        if(length(mcols_want[mcols_want %in% names(S4Vectors::mcols(call_1[[y]]))]) != length(mcols_want)){
+          gsub("VF","AF", names(S4Vectors::mcols(call_1[[y]])))
         }
-        if(length(mcols_want[mcols_want %in% names(S4Vectors::mcols(callr_1[[y]]))]) != length(mcols_want)){
-          gsub("VF","AF", names(S4Vectors::mcols(callr_1[[y]])))
+        if(length(mcols_want[mcols_want %in% names(S4Vectors::mcols(call_1[[y]]))]) != length(mcols_want)){
+          gsub("VF","AF", names(S4Vectors::mcols(call_1[[y]])))
         }
       }
       calls_1$HGVSp1 <- sub_hgvsp(calls_1$HGVSp)
@@ -354,6 +354,7 @@ gr_super_set <- function(var_list, name_callers, impacts){
 #'
 #' @param var_list is a nested list of [[caller]][[samples1..n]]
 #' @param gr_super is a GRanges superset from gr_super_set()
+#' @param tag is a string used to tag output files
 #' @return GRanges object of consensus per sample
 #' @export
 
@@ -386,7 +387,9 @@ at_least_two <- function(var_list, gr_super, tag) {
 
 #' Find consensus of at least two callers using GRanges superset
 #'
+#' @importFrom rlang :=
 #' @param var_list is a nested list of [[caller]][[samples1..n]]
+#' @param gr_super is a GRanges superset from gr_super_set()
 #' @param callers are the named variant callers
 #' @param samp is the sample being operated on
 #' @param tag is a string to tag output files
@@ -395,9 +398,10 @@ at_least_two <- function(var_list, gr_super, tag) {
 
 combn_at_least_two <- function(var_list, gr_super, callers, samp, tag) {
 
+  r <- POS <- AD <- AD1 <- ADSUM <- ID <- REF <- ALT <- QUAL <- FILTER <- INFO <- FORMAT <- sampleID <- NULL
   ##all possible combinations of intersects of callers
   ##output to new GRanges object
-  up_l1 <- apply(t(combn(length(callers), m = 2)), 1, function(xx){
+  up_l1 <- apply(t(utils::combn(length(callers), m = 2)), 1, function(xx){
     print(paste(callers[xx[1]], " vs. ", callers[xx[2]]))
     gr_1 <- var_list[[names(var_list)[xx[1]]]][[samp]]
     gr_2 <- var_list[[names(var_list)[xx[2]]]][[samp]]
@@ -485,10 +489,12 @@ raw_afs <- function(raw_list, comb_gr){
 #' @param raw_list is a nested list of raw calls [[caller]][[samples1..n]]
 #' @param tag is a string to tag output files
 #' @param included_order oredering of samples for plotting
-#' @return
+#' @return none, plots PDF and writes out tsv files
 #' @export
 
 plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
+
+  row_sum <- sum_01 <- row_sum_01 <- NULL
 
   print("Determining shared variants for plotting...")
   ##remove hyphens from names
@@ -580,7 +586,7 @@ plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
   if(dim(plot_vec)[1] != 0){
     plot_labels <- rep("", dim(plot_vec)[1])
     row_fontsize <- 1
-    colz <- colorRampPalette(c("lightgrey", "dodgerblue", "blue"))
+    colz <- grDevices::colorRampPalette(c("lightgrey", "dodgerblue", "blue"))
     ##plotting and whether to use labels, size of labels
     if(dim(plot_vec)[1] < 120){
       row_fonttype = "bold"
@@ -592,7 +598,7 @@ plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
       plot_labels <- rownames(plot_vec)
     }
 
-    pdf(paste0(tag, ".", plot_tag, ".pdf"), onefile = F)
+    grDevices::pdf(paste0(tag, ".", plot_tag, ".pdf"), onefile = F)
     pheatmap::pheatmap(plot_vec[, c(1:length(included_order))],
        breaks = seq(from = 0, to = 0.5, length.out = 101),
        color = colz(100),
@@ -606,114 +612,103 @@ plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
        border_color = "lightgrey",
        gaps_col = c(1:length(included_order))
     )
-    dev.off()
+    grDevices::dev.off()
   }
 }
 
 #' Create two plots: all consensus, those in 2+ samples
 #'
+#' @importFrom rlang .data
 #' @param plot_list is a nested list of plot data [[caller]][[samples1..n]]
 #' @param raw_list is a nested list of raw calls [[caller]][[samples1..n]]
 #' @param tag is a string to tag output files
+#' @param included_order ordering of samples for plotting
 #' @return data.frame object of raw variant call allele frequencies
 #' @export
 
 plot_consensus_single <- function(plot_list, raw_list, tag, included_order){
 
   ##remove hyphens
-  sample <- names(plot_list)[1]
+  samp <- names(plot_list)[1]
 
   ##combined set of all samples
   comb_gr <- suppressWarnings(unique(plot_list))
-  seqlevels(comb_gr) <- sort(seqlevels(comb_gr))
+  GenomeInfoDb::seqlevels(comb_gr) <- sort(GenomeInfoDb::seqlevels(comb_gr))
   comb_gr <- sort(comb_gr)
-  comb_df <- as.data.frame(as.data.table(comb_gr))
+  comb_df <- as.data.frame(comb_gr)
 
   ##labels for plot
   hgvsp <- unlist(lapply(comb_gr$HGVSp1,function(f){
     strsplit(f,"\\.")[[1]][3]
   }))
-  uniqLabels <- paste(names(comb_gr),
-                     comb_df$SYMBOL,
-                     comb_df$Consequence,
-                     hgvsp, sep=":")
+  uniq_labels <- paste(names(comb_gr),
+                       comb_df$SYMBOL,
+                       comb_df$Consequence,
+                       hgvsp, sep=":")
 
   ##take those positions, then query raw calls
   ##allows 'rescue' of those falling out from arbitrary filters
   ##enough support previously to allow re-entry
-  raw_afs <- function(raw_list){
-    as.data.frame(lapply(raw_list,function(ff){
-      afs <- rep(0,length(comb_gr))
-      lapply(ff,function(fff){
-        seqlevels(fff) <- sort(seqlevels(fff))
-        ffs <- sort(fff)
-        ffsi <- ffs[ffs %in% comb_gr]
-        afs[comb_gr %in% ffsi] <- as.numeric(S4Vectors::mcols(ffsi)$AF)
-        return(afs)
-      })
-    }))
-  }
-  plot_df_raw_out <- raw_afs(raw_list)
-  if(length(warnings())>=1){
-    plot_df_raw_out <- raw_afs(raw_list)
-  }
-  colnames(plot_df_raw_out) <- unlist(lapply(names(raw_list),function(f){
-    paste(f,sample,sep=".")
-  }))
-  plot_df_raw_out <- do.call(cbind,lapply(sample, function(ss){
-    apply(plot_df_raw_out[,grep(ss, colnames(plot_df_raw_out))],1,max)
+  plot_df_raw_afs <- raw_afs(raw_list, comb_gr)
+
+  ##rename based on callers.samp
+  colnames(plot_df_raw_afs) <- unlist(lapply(names(raw_list), function(f){
+    paste(f, samp, sep=".")
   }))
 
-  plot_df_raw_out <- as.data.frame(plot_df_raw_out)
-  colnames(plot_df_raw_out) <- sample
-  rownames(plot_df_raw_out) <- uniqLabels
+  ##take maximum AF from the two callers
+  plot_df_raw_max <- do.call(cbind, lapply(samp, function(ss){
+    apply(plot_df_raw_afs[, grep(ss, colnames(plot_df_raw_afs))], 1, max)
+  }))
+  plot_df_raw_max <- as.data.frame(plot_df_raw_max)
+  colnames(plot_df_raw_max) <- samp
+  rownames(plot_df_raw_max) <- uniq_labels
 
   ##ordering
-  plot_df_raw_ordered <- as_tibble(plot_df_raw_out, rownames="row") %>%
-                   dplyr::arrange(.[[2]]) %>%
-                   base::as.data.frame()
+  plot_df_raw_ordered <- tibble::as_tibble(plot_df_raw_max, rownames = "label")
+  plot_df_raw_ordered <- dplyr::arrange(.data = plot_df_raw_ordered, .data[[2]])
+  plot_df_raw_ordered <- base::as.data.frame(plot_df_raw_ordered)
 
   if(dim(plot_df_raw_ordered)[1] != 0){
-    plot_vec <- data.frame(row.names=plot_df_raw_ordered[,1],
-                          tag=plot_df_raw_ordered[,2])
-    plotTag <- "variants"
-
+    plot_vec <- data.frame(row.names = plot_df_raw_ordered[,1],
+                           tag = plot_df_raw_ordered[,2])
+    plot_tag <- "variants"
     plot_labels <- rep("",times=dim(plot_vec)[1])
     row_fontsize <- 1
-    colz <- colorRampPalette(c("lightgrey","dodgerblue","blue"))
+    colz <- grDevices::colorRampPalette(c("lightgrey", "dodgerblue", "blue"))
     if(dim(plot_vec)[1] < 120){
-      if(dim(plot_vec)[1]<20){row_fontsize=8}
-      if(dim(plot_vec)[1]<50){row_fontsize=6}
-      if(dim(plot_vec)[1]>50 & dim(plot_vec)[1]<100){row_fontsize=4}
-      if(dim(plot_vec)[1]>100){row_fontsize=2}
+      if(dim(plot_vec)[1] < 20){row_fontsize = 8}
+      if(dim(plot_vec)[1] < 50){row_fontsize = 6}
+      if(dim(plot_vec)[1] > 50 & dim(plot_vec)[1] < 100){row_fontsize = 4}
+      if(dim(plot_vec)[1] > 100){row_fontsize = 2}
       plot_labels <- rownames(plot_vec)
     }
 
-    pdf(paste0(taga, ".", plotTag, ".consensus.onlyOverlap.pdf"), onefile=F)
+    grDevices::pdf(paste0(tag, ".", plot_tag, ".consensus.onlyOverlap.pdf"), onefile=F)
     pheatmap::pheatmap(plot_vec,
-       breaks=seq(from=0,to=0.5,length.out=101),
-       color=colz(100),
-       cluster_rows=FALSE,
-       cluster_cols=FALSE,
-       clustering_distance_rows=NA,
-       cellwidth=12,
-       legend=TRUE,
-       fontsize_row=row_fontsize,
-       labels_row=plot_labels,
-       labels_col=taga,
-       border_color="lightgrey"
+       breaks = seq(from = 0, to = 0.5, length.out = 101),
+       color = colz(100),
+       cluster_rows = FALSE,
+       cluster_cols = FALSE,
+       clustering_distance_rows = NA,
+       cellwidth = 12,
+       legend = TRUE,
+       fontsize_row = row_fontsize,
+       labels_row = plot_labels,
+       labels_col = tag,
+       border_color = "lightgrey"
     )
-    dev.off()
+    grDevices::dev.off()
   }
 }
 
 #' Return overlapping variants for all samples
-#' write VCF for PCGR based on example BRCA VCF from Github
 #'
 #' @param plot_list list produced by at_least_two()
 #' @param plot_df data.frame of plotting information
-#' @param samp is the sample being operated on
 #' @param tag is a string used to tag output files
+#' @param included_order ordering of samples for plotting
+#' @param cons string to define consensus (shared or all)
 #' @return GRanges object of all  of single-letter HGVS protein IDs
 #' @export
 
