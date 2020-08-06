@@ -764,8 +764,8 @@ sub_hgvsp <- function(in_vec){
 
   unlist(lapply(in_vec,function(f){
     #check matches (should be none or two)
-    a3 <- aa3[!is.na(unlist(stringi::stri_match_all(f,regex=aa3)))]
-    a1 <- aa1[!is.na(unlist(stringi::stri_match_all(f,regex=aa3)))]
+    a3 <- aa3[!is.na(unlist(stringi::stri_match_all(f, regex = aa3)))]
+    a1 <- aa1[!is.na(unlist(stringi::stri_match_all(f, regex = aa3)))]
     ##beauty:
     #https://stackoverflow.com/questions/19424709/r-gsub-pattern-vector-and-replacement-vector
     if(length(a3)>0){

@@ -2,7 +2,7 @@
 % Please edit documentation in R/somenone_gridss.R
 \name{gridss_parse_multi_vcf}
 \alias{gridss_parse_multi_vcf}
-\title{GRIDSS functions}
+\title{Parse multi-sample VCF (recommended output of GRIDSS)}
 \usage{
 gridss_parse_multi_vcf(vcf, which_genome = NULL)
 }

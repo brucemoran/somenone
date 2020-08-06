@@ -8,7 +8,7 @@ Description: somenone, acronymised from SOM(atic) (E)N(-of-)ONE (deep apologies)
 License: AGPL-3
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.1.0
+RoxygenNote: 7.1.1
 Depends:
     R (>= 3.5.0)
 Suggests:
@@ -42,6 +42,8 @@ Suggests:
     IRanges,
     ggplot2,
     plyr,
-    grDevices
-Imports: 
+    grDevices,
+    ComplexHeatmap,
+    grid
+Imports:
     rlang

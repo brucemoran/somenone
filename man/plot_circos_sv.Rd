@@ -4,13 +4,15 @@
 \alias{plot_circos_sv}
 \title{OmicCircos plotting from data.frame from GRIDSS bedpe}
 \usage{
-plot_circos_sv(input_df, which_genome, pdf_path)
+plot_circos_sv(input_df, which_genome, dict_file, output_path)
 }
 \arguments{
 \item{input_df}{data.frame with chrom1, start1, end1, symbol1,
 chrom2, start2, end2, symbol2, sampleID, colour columns}
 
 \item{which_genome, }{genome assembly used ("hg19", "hg38")}
+
+\item{dict_file}{dictionary file for fasta used in alignment}
 
 \item{pdf_path}{path to where PDF file with output plot is written
 N.B. two pages, one with Circos plot and one with legend}

@@ -1,5 +1,42 @@
 #' GRIDSS functions
 #'
+#' Wrapper to plot multi-sample VCF list (recurrent and not)
+#'
+#' @param vcf, the VCF file path
+#' @param dict_file dictionary file for fasta used in alignment
+#' @param which_genome, genome assembly used ("hg19", "hg38")
+#' @param output_path, file path to output plots
+#' @return none, plots recurrent and private SVs and writes output to TSV format file
+#' @export
+
+gridss_parse_plot <- function(vcf, dict_file, which_genome = NULL, output_path = NULL){
+
+  ##set genome as hg19 unless spec'd
+  if (is.null(which_genome)){
+    which_genome <- "hg19"
+  }
+
+  ##set output_path based on VCF if NULL
+  if (is.null(output_path)){
+    output_path <- paste0(stringr::str_split(vcf, "\\.vcf")[[1]][1])
+  }
+
+  gridss_parsed_multi_list <- gridss_parse_multi_vcf(vcf = vcf,
+                                                     which_genome = which_genome)
+  rec_df <- as.data.frame(gridss_parsed_multi_list[[1]])
+  prv_df <- as.data.frame(gridss_parsed_multi_list[[2]])
+
+  plot_circos_sv(input_df = rec_df,
+                 dict_file = dict_file,
+                 which_genome = which_genome,
+                 output_path = paste0(output_path, ".recurrent"))
+  plot_circos_sv(input_df = prv_df,
+                 dict_file = dict_file,
+                 which_genome = which_genome,
+                 output_path = paste0(output_path, ".private"))
+}
+
+
 #' Parse multi-sample VCF (recommended output of GRIDSS)
 #'
 #' @param vcf, the VCF file path
@@ -36,12 +73,13 @@ gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
   names(bpgr_list) <- sample_names
 
   ##make single bedpe for all VCFs
-  bedpe_rb <- do.call(rbind, bedpe_list_filter)
+  gridss_bedpe_list <- gridss_bedpe_list(bpgr_list, which_genome)
+  bedpe_rb <- do.call(rbind, gridss_bedpe_list)
 
   ##find reccuring events (same at 1,2,3,4,5,6,7,8)
   bedpe_rb_rec <- dplyr::mutate_if(bedpe_rb, is.factor,as.numeric)
-  bedpe_rb_rec <- dplyr::group_by_at(bedpe_rb_rec, vars(-qualscore, -sampleID))
-  bedpe_rb_rec <- dplyr::mutate(bedpe_rb_rec, num_rows = sum(n()))
+  bedpe_rb_rec <- dplyr::group_by_at(bedpe_rb_rec, dplyr::vars(-qualscore, -sampleID))
+  bedpe_rb_rec <- dplyr::mutate(bedpe_rb_rec, num_rows = base::sum(dplyr::n()))
   bedpe_rb_rec <- dplyr::filter(bedpe_rb_rec, num_rows > 1)
   bedpe_rb_rec <- dplyr::ungroup(bedpe_rb_rec)
   bedpe_rb_rec <- dplyr::select(bedpe_rb_rec, -qualscore, -sampleID, -num_rows)
@@ -71,8 +109,8 @@ gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
 
   ##non-recurrent
   bedpe_rb_pri <- dplyr::mutate_if(bedpe_rb, is.factor,as.numeric)
-  bedpe_rb_pri <- dplyr::group_by_at(bedpe_rb_pri, vars(-qualscore, -sampleID))
-  bedpe_rb_pri <- dplyr::mutate(bedpe_rb_pri, num_rows = sum(n()))
+  bedpe_rb_pri <- dplyr::group_by_at(bedpe_rb_pri, dplyr::vars(-qualscore, -sampleID))
+  bedpe_rb_pri <- dplyr::mutate(bedpe_rb_pri, num_rows = sum(dplyr::n()))
   bedpe_rb_pri <- dplyr::filter(bedpe_rb_pri, num_rows == 1)
   bedpe_rb_pri <- dplyr::ungroup(bedpe_rb_pri)
   bedpe_rb_pri <- dplyr::select(bedpe_rb_pri, -num_rows)
@@ -86,12 +124,12 @@ gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
 #' Produce a list of bedpe, from a list of breakpoint GRanges,
 #'    with score > qual_filt and both breakpoints within annotated genes
 #' @param bpgr_list list of per-sample breakpont GRanges objects
-#' @param qual_filt qulaity score filter above which is returned
 #' @param which_genome, genome assembly used ("hg19", "hg38")
+#' @param qual_filt quality score filter above which is returned
 #' @return filtered bedpe list
 #' @export
 
-gridss_bedpe_list <- function(bpgr_list, qual_filt, which_genome) {
+gridss_bedpe_list <- function(bpgr_list, which_genome, qual_filt = 2) {
 
   start <- end <- vcf_list <- symbol1 <- symbol2 <- NULL
 
@@ -106,7 +144,7 @@ gridss_bedpe_list <- function(bpgr_list, qual_filt, which_genome) {
     gr_partner <- gr[names(gr) %in% grp$partner,]
 
     ##force into only 1:22, X
-    GenomeInfoDb::seqlevels(grp, pruning.mode="coarse") <- GenomeInfoDb::seqlevels(grp)[c(1:23)]
+    GenomeInfoDb::seqlevels(grp, pruning.mode = "coarse") <- GenomeInfoDb::seqlevels(grp)[c(1:23)]
 
     ##annotate
     grp_anno <- gridss_annotate_gr(grp, which_genome)
@@ -115,18 +153,17 @@ gridss_bedpe_list <- function(bpgr_list, qual_filt, which_genome) {
     gr_partner_anno_use <- gr_partner_anno[names(gr_partner_anno) %in% grp_anno_use$partner]
 
     #bedpe for input, simplest format
-    bedpe1k <- data.frame(chrom1 = GenomeInfoDb::seqnames(grp_anno_use),
-                          start1 = start(grp_anno_use),
-                          end1 = end(grp_anno_use),
+    bedpe1k <- data.frame(chrom1 = as.data.frame(grp_anno_use)[,1],
+                          start1 = c(as.data.frame(grp_anno_use)[,2]),
+                          end1 = c(as.data.frame(grp_anno_use)[,3]),
                           symbol1 = grp_anno_use$SYMBOL,
-                          chrom2 = GenomeInfoDb::seqnames(gr_partner_anno_use),
-                          start2 = start(gr_partner_anno_use),
-                          end2 = end(gr_partner_anno_use),
+                          chrom2 = as.data.frame(gr_partner_anno_use)[,1],
+                          start2 = c(as.data.frame(gr_partner_anno_use)[,2]),
+                          end2 = c(as.data.frame(gr_partner_anno_use)[,3]),
                           symbol2 = gr_partner_anno_use$SYMBOL,
                           qualscore = grp_anno_use$QUAL,
-                          sampleID = names(vcf_list)[f])
+                          sampleID = names(bpgr_list)[f])
     bedpe1k <- dplyr::filter(bedpe1k, ! symbol1 %in% "",! symbol2 %in% "")
-
     return(bedpe1k[bedpe1k$qualscore > qual_filt,])
   })
   return(bedpe_list_filter)
@@ -171,70 +208,98 @@ gridss_annotate_gr <- function(gr, which_genome) {
 #' @param input_df data.frame with chrom1, start1, end1, symbol1,
 #'   chrom2, start2, end2, symbol2, sampleID, colour columns
 #' @param which_genome, genome assembly used ("hg19", "hg38")
+#' @param dict_file dictionary file for fasta used in alignment
 #' @param pdf_path path to where PDF file with output plot is written
 #'    N.B. two pages, one with Circos plot and one with legend
 #' @return none, prints plot to file
 #' @export
 
-plot_circos_sv <- function(input_df, which_genome, pdf_path){
+plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 
   if(!is.data.frame(input_df)){
     print("Require data.frame input with chromsomes as factors")
   } else {
 
+    ##write output table
+    readr::write_tsv(input_df, path = paste0(output_path, ".tsv"))
+
     ##impose condition that over 200 SVs in input_df
     ##plot only those that are on different chromosomes
-    if(dim(input_df)[1]>100){
+    if(dim(input_df)[1] > 50){
       print(paste0("Total of ", dim(input_df)[1], " SV found, reducing to those on different chromosomes"))
-      input_df <- input_df[as.vector(input_df$chrom1) != as.vector(input_df$chrom2),]
+      input_df_tr <- input_df[as.vector(input_df$chrom1) != as.vector(input_df$chrom2),]
       print(paste0("Now using with ", dim(input_df)[1], " SV"))
+    } else {
+      input_df_tr <- input_df
     }
 
-    ##create labelling coordinates, colouring
-    label_df <- data.frame(chrom = c(unlist(input_df[,"chrom1"]), unlist(input_df[,"chrom2"])),
-                          start = c(unlist(input_df[,"start1"]), unlist(input_df[,"start2"])),
-                          gene = c(unlist(input_df[,"symbol1"]), unlist(input_df[,"symbol2"])),
-                          colour = c(unlist(input_df[,"colour"]), unlist(input_df[,"colour"])))
+    ##create seqlengths df for ideogram
+    url19 <- paste0("http://hgdownload.cse.ucsc.edu/goldenpath/hg19/database/cytoBand.txt.gz")
+    url38 <- paste0("http://hgdownload.cse.ucsc.edu/goldenpath/hg38/database/cytoBand.txt.gz")
+    tempf <- tempfile()
+    if(which_genome == "hg19"){
+      utils::download.file(url19, tempf)
+      cytoband <- utils::read.table(tempf)
+    } else {
+      utils::download.file(url19, tempf)
+      cytoband <- utils::read.table(tempf)
+    }
 
-    ##actual OmicCircos plotting function
-    pcfoc_func <- function(input_df, which_genome, label_df) {
-      graphics::plot(c(1,800) , c(1,800) , type="n", axes=FALSE, xlab="", ylab="")
-      OmicCircos::circos(R = 248,
-                         cir = which_genome,
-                         type="chr",
-                         print.chr.lab = TRUE,
-                         W = 5,
-                         scale = F)
-      OmicCircos::circos(R = 240,
-                         cir = which_genome,
-                         W = 50,
-                         mapping = input_df[,c(1:3,5:7)],
-                         type = "link.pg",
-                         col = as.vector(input_df$colour))
-      OmicCircos::circos(R = 255,
-                         cir = which_genome,
-                         W = 50,
-                         mapping = label_df,
-                         type = "label",
-                         col = "black",
-                         side = "out",
-                         cex = .4)
-     }
+    ##circlize requires 'chr' label on chroms
+    input_df_tr[,1] <- paste0("chr", input_df_tr[,1])
+    input_df_tr[,5] <- paste0("chr", input_df_tr[,5])
 
-     ##colours per-sample
-     nms <- names(table(input_df$sampleID))
-     colz <- unlist(lapply(nms, function(f) {
-       input_df$colour[match(f, input_df$sampleID)]
-     }))
+    ##test all chrs are in each set of regions
+    region_1 <- data.frame(chr = input_df_tr[,"chrom1"],
+                        start = input_df_tr[,"start1"],
+                        end = input_df_tr[,"end1"])
+    region_2 <- data.frame(region = input_df_tr[,"chrom2"],
+                        start = input_df_tr[,"start2"],
+                        end = input_df_tr[,"end2"])
+    region_1_in <- region_1[,1] %in% cytoband[,1]
+    region_2_in <- region_2[,1] %in% cytoband[,1]
+    region_1 <- region_1[region_1_in & region_2_in,]
+    region_2 <- region_2[region_1_in & region_2_in,]
+    region_c <- input_df_tr[region_1_in & region_2_in, "colour"]
+    labels_o1 <- input_df_tr[region_1_in & region_2_in, c("chrom1", "start1", "end1", "symbol1", "colour")]
+    labels_o2 <- input_df_tr[region_1_in & region_2_in, c("chrom2", "start2", "end2", "symbol2", "colour")]
+    colnames(labels_o1) <- colnames(labels_o2) <- c("chr1", "start", "end", "symbol", "colour")
+    labels_o <- rbind(labels_o1, labels_o2)
 
-     grDevices::pdf(pdf_path, width = 9, height = 9)
-     graphics::par(mar=c(2,2,2,2))
-     pcfoc_func(input_df, which_genome, label_df)
-     grid::grid.newpage()
-     graphics::legend(200, 500,
-            legend = nms,
-            col = colz,
-            lty=1, lwd=2)
-     grDevices::dev.off()
+    ##circize plot
+    ##colours per-sample
+    grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
+
+    ##initialise blank ideogram
+    circlize::circos.initializeWithIdeogram(plotType = NULL)
+    ##labels on outer track if enough space...
+    if(dim(region_1)[1] < 150) {
+    circlize::circos.genomicLabels(labels_o,
+                         labels.column = "symbol",
+                         side = "outside",
+                         col = labels_o$colour,
+                         line_col = labels_o$colour)
+    }
+    ##cytoband data
+    circlize::circos.genomicIdeogram(cytoband)
+
+    ##links
+    circlize::circos.genomicLink(region1 = region_1,
+                                 region2 = region_2,
+                                 col = region_c)
+    ##legend
+    nms <- gsub(",", ", ", unique(names(region_c)))
+    colz <- unique(region_c)
+    lgnd <- ComplexHeatmap::Legend(at = nms,
+                                   type = "lines",
+                                   legend_gp = grid::gpar(col = colz, lwd = 4),
+                                   title_position = "topleft",
+                                   title = "Legend")
+
+    ##plot legend on a new page to allow manipulation into final image
+    grid::grid.newpage()
+    grid::grid.draw(lgnd)
+
+    grDevices::dev.off()
   }
 }

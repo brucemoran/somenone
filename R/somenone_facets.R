@@ -2,12 +2,14 @@
 #'
 #' Standard Facets CNA call
 #'
+#' @importFrom pctGCdata getGCpct
 #' @param input_csv path to CSV format file as per requirements of Facets
 #' @return none, saves plots and writes output in current dir
 #' @export
 
 facets_cna_call <- function(input_csv){
 
+  requireNamespace("pctGCdata", quietly = TRUE)
   tumour <- stringr::str_split(input_csv, "\\.")[[1]][1]
   set.seed(1234)
   snpmat <- facets::readSnpMatrix(input_csv)
@@ -25,6 +27,7 @@ facets_cna_call <- function(input_csv){
 
 #' Consensus CNA estimation and plotting with Facets input
 #'
+#' @import pctGCdata
 #' @param pattern a pattern within file names to use for parsing input
 #' @param dict_file a dictionary file for the fasta used to align data
 #' @param tag a string used to tag output
