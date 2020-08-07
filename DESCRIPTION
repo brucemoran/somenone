@@ -28,6 +28,7 @@ Suggests:
     dplyr,
     ensembldb,
     facets,
+    pctGCdata,
     org.Hs.eg.db,
     pheatmap,
     readr,
@@ -44,6 +45,5 @@ Suggests:
     plyr,
     grDevices,
     ComplexHeatmap,
-    grid
-Imports:
+    grid,
     rlang

@@ -8,9 +8,9 @@ variant_consensus(
   germline_id,
   vep_vcf_pattern,
   raw_vcf_pattern = "raw.vcf",
+  tag = "somatic_n_of_1",
   included_order = NULL,
-  name_callers = NULL,
-  tag = NULL
+  name_callers = NULL
 )
 }
 \arguments{
@@ -20,11 +20,11 @@ variant_consensus(
 
 \item{raw_vcf_pattern}{pattern to match raw unannotated, unfiltered VCFs unfiltered}
 
+\item{tag}{is a string to tag output files}
+
 \item{included_order}{oredering of samples for plotting}
 
 \item{name_callers}{named variant callers to use primary to random selection}
-
-\item{tag}{is a string to tag output files}
 }
 \value{
 vector of single-letter HGVS protein IDs

@@ -346,7 +346,7 @@ gr_super_set <- function(var_list, name_callers, impacts){
 
 #' Find consensus of at least two callers using GRanges 'superset'
 #'
-#' @importFrom rlang :=
+#' @import rlang
 #' @param var_list is a nested list of [[caller]][[samples1..n]]
 #' @param gr_super is a GRanges superset from gr_super_set()
 #' @param tag is a string used to tag output files
@@ -355,6 +355,10 @@ gr_super_set <- function(var_list, name_callers, impacts){
 
 at_least_two <- function(var_list, gr_super, tag) {
 
+  if(grep("rlang", search(), value=T) != "package:rlang"){
+    attachNamespace("rlang")
+  }
+  
   ##set TMB, no longer used as PCGR determines TMB
   # if(is.null(tmb)){
   #   tmb <- "null"
@@ -366,6 +370,7 @@ at_least_two <- function(var_list, gr_super, tag) {
   samps <- names(var_list[[1]])
   print("Samples available:")
   print(samps)
+  gr_plot <- NULL
 
   ##iterate over list of callers
   gr_plots <- lapply(seq_along(samps), function(x) {
@@ -433,8 +438,8 @@ at_least_two <- function(var_list, gr_super, tag) {
                                                   ",",
                                                   AD1))
         vcf_grpms <- dplyr::select(vcf_grpm, '#CHROM', POS, ID, REF, ALT, QUAL, FILTER, INFO,  FORMAT, sampleID)
-        vcf_gr_plot <- dplyr::rename(vcf_grpms, !!samp:="sampleID")
-
+        #vcf_gr_plot <- colnames(vcf_grpms)["sampleID"] <- samp
+        vcf_gr_plot <- dplyr::rename(vcf_grpms, !!samp := "sampleID")
       readr::write_tsv(as.data.frame(vcf_gr_plot), path = vcf_out)
     }
     return(gr_plot)
@@ -778,7 +783,7 @@ gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, tag, in
   gr_super <- somenone::gr_super_set(var_list, name_callers, impacts)
 
   ##get list to plot from with at least two callers supporting
-  plot_list <- somenone::at_least_two(var_list, gr_super, tag)
+  plot_list <- at_least_two(var_list, gr_super, tag)
 
   ##if single sample plot_list is actually a GRanges object(!)
   if(!is.list(plot_list)){
