@@ -78,10 +78,14 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
   two_callers <- c(callers[1], callers[2])
 
   ##ensure some variants in each sample to check on
-  any_vars <- unlist(lapply(var_list, function(calr){
-                      lapply(calr, length)
-                    }))
-
+  any_vars <- unlist(lapply(seq_along(var_list), function(x){
+                     lapply(seq_along(var_list[[x]]), function(y){
+                       length(var_list[[x]][[y]])
+                     })}))
+  any_vars <- unlist(lapply(seq_along(var_list), function(x){
+                    lapply(seq_along(var_list[[x]]), function(y){
+                      length(var_list[[x]][[y]])
+                    })}))
   if(all(any_vars > 0)){
 
     ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
@@ -279,6 +283,8 @@ gr_super_set <- function(var_list, name_callers, impacts){
   #exclude MT, GL
   seqwant <- c(seq(from=1, to=22, by=1), "X")
 
+  print(call_1)
+  print(call_2)  
   ##iterate over samples in call_1, call_2 (calls from the two named callers)
   ##in the same sample
   if(length(call_1) > 1){
@@ -346,98 +352,74 @@ gr_super_set <- function(var_list, name_callers, impacts){
 
 #' Find consensus of at least two callers using GRanges 'superset'
 #'
-#' @importFrom rlang :=
 #' @param var_list is a nested list of [[caller]][[samples1..n]]
 #' @param gr_super is a GRanges superset from gr_super_set()
 #' @param tag is a string used to tag output files
 #' @return GRanges object of consensus per sample
 #' @export
 
-at_least_two <- function(var_list, gr_super, tag) {
-
-  ##set TMB, no longer used as PCGR determines TMB
-  # if(is.null(tmb)){
-  #   tmb <- "null"
-  # }
+at_least_two <- function (var_list, gr_super, tag){
   print("Finding at-least-two callers supporting variants...")
-
-  ##set vars
   callers <- names(var_list)
   samps <- names(var_list[[1]])
   print("Samples available:")
   print(samps)
-
-  ##iterate over list of callers
+  gr_plot <- NULL
   gr_plots <- lapply(seq_along(samps), function(x) {
-  print(paste0("Working on: ", samps[x]))
-  samp <- samps[x]
-
-    ##all possible combinations of intersects of callers
-    ##output to new GRanges object
-    up_l1 <- apply(t(utils::combn(length(callers), m = 2)), 1, function(xx){
-      print(paste(callers[xx[1]], " vs. ", callers[xx[2]]))
-      gr_1 <- var_list[[names(var_list)[xx[1]]]][[samp]]
-      gr_2 <- var_list[[names(var_list)[xx[2]]]][[samp]]
-      ##found in both
-      suppressWarnings(dplyr::intersect(gr_2, gr_1))
-    })
-
-    ##with more than 2 variant callers you get output of more than one GRanges
-    ##with only two callers, you get one comparison
-    if(length(up_l1) > 1){
-      ##set up_l1 as first comparison, then add all other variants with support
-      up_l2 <- up_l1[[1]]
-      for(xx in 2:length(up_l1)){
-        up_l2 <- suppressWarnings(c(up_l2, up_l1[[xx]]))
+      print(paste0("Working on: ", samps[x]))
+      samp <- samps[x]
+      gr_samp <- gr_super[[samp]]
+      print("THERE_0")
+      up_l1 <- apply(t(utils::combn(length(callers), m = 2)),
+          1, function(xx) {
+              print(paste(callers[xx[1]], " vs. ", callers[xx[2]]))
+              gr_1 <- var_list[[names(var_list)[xx[1]]]][[samp]]
+              gr_2 <- var_list[[names(var_list)[xx[2]]]][[samp]]
+              suppressWarnings(dplyr::intersect(gr_2, gr_1))
+          })
+      print("THERE_1")
+      if (length(up_l1) > 1) {
+          up_l2 <- up_l1[[1]]
+          print("THERE_2")
+          for (xx in 2:length(up_l1)) {
+              up_l2 <- suppressWarnings(c(up_l2, up_l1[[xx]]))
+          }
+          if (!is.null(names(gr_super[[samp]]))) {
+              print("THERE_3")
+              gr_plot <- gr_samp[names(gr_samp) %in%
+                unique(names(up_l2))]
+          }
+          else {
+              gr_plot <- GRanges()
+          }
       }
-      if(!is.null(names(gr_super[[samp]]))){
-        gr_plot <- suppressWarnings(gr_super[[samp]][names(gr_super[[samp]]) %in% unique(names(up_l2))])
-      } else {
-        gr_plot <- GRanges()
+      else {
+          gr_plot <- dplyr::intersect(gr_super[[samp]], unique(up_l1[[1]]))
       }
-    } else {
-      gr_plot <- dplyr::intersect(gr_super[[samp]], unique(up_l1[[1]]))
-    }
-    if(!is.null(names(gr_super[[samp]]))){
-      #output files
-      file_out <- paste0(samp, ".", tag, ".consensus.tsv")
-      vcf_out <- paste0(samp, ".", tag, ".pcgr.all.tsv.vcf")
-
-      # if(tmb == "snv"){
-      #     tmb_out <- exome_tumour_mutation_burden(gr_plot)
-      #     file_out <- paste0(samp, ".", tag, ".TMB_", tmb_out, "_SNV-Mb.consensus.tab")
-      # }
-      readr::write_tsv(as.data.frame(gr_plot), path = file_out)
-
-      ##VCF output
-      ###CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT
-      ##1	33238563	.	G	A	.	PASS	TVAF=0.145833333333;TDP=49;	GT:DPC:DPT:ADC:ADT	0/1:.:DP:.,.:AD,AD.1
-      vcf_grp <- tibble::as_tibble(as.data.frame(gr_plot), rownames="r")
-      vcf_grps <- tidyr::separate(vcf_grp,
-                                  r,
-                                  c("#CHROM", "POS", "REF", "ALT"),
-                                  sep = "[:_\\/]")
-      vcf_grpr <- dplyr::rename(vcf_grps, AD1='AD.1')
-      vcf_grpm <- dplyr::mutate(vcf_grpr,
-                                POS = as.integer(POS),
-                                ID = ".",
-                                QUAL = ".",
-                                INFO = ".",
-                                FILTER = "PASS",
-                                FORMAT = "GT:DPC:DPT:ADC:ADT",
-                                ADSUM = as.numeric(AD) + as.numeric(AD1),
-                                sampleID = paste0("0/1:.:",
-                                                  ADSUM,
-                                                  ":.,.:",
-                                                  AD,
-                                                  ",",
-                                                  AD1))
-        vcf_grpms <- dplyr::select(vcf_grpm, '#CHROM', POS, ID, REF, ALT, QUAL, FILTER, INFO,  FORMAT, sampleID)
-        vcf_gr_plot <- dplyr::rename(vcf_grpms, !!samp:="sampleID")
-
-      readr::write_tsv(as.data.frame(vcf_gr_plot), path = vcf_out)
-    }
-    return(gr_plot)
+      if (!length(names(gr_plot)) == 0) {
+          file_out <- paste0(samp, ".", tag, ".consensus.tsv")
+          vcf_out <- paste0(samp, ".", tag, ".pcgr.all.tsv.vcf")
+          readr::write_tsv(as.data.frame(gr_plot), path = file_out)
+          print("HERE_0")
+          vcf_grp <- tibble::as_tibble(as.data.frame(gr_plot))
+          vcf_grp <- dplyr::mutate(vcf_grp, r = names(gr_plot))
+          print("HERE_1")
+          vcf_grps <- tidyr::separate(vcf_grp, r, c("#CHROM",
+              "POS", "REF", "ALT"), sep = "[:_\\/]")
+          print("HERE_2")
+          vcf_grpr <- dplyr::rename(vcf_grps, AD1 = "AD.1")
+          print("HERE_3")
+          vcf_grpm <- dplyr::mutate(vcf_grpr, POS = as.integer(POS),
+              ID = ".", QUAL = ".", INFO = ".", FILTER = "PASS",
+              FORMAT = "GT:DPC:DPT:ADC:ADT", ADSUM = as.numeric(AD) +
+                as.numeric(AD1), sampleID = paste0("0/1:.:",
+                ADSUM, ":.,.:", AD, ",", AD1))
+          vcf_grpms <- dplyr::select(vcf_grpm, "#CHROM", POS,
+              ID, REF, ALT, QUAL, FILTER, INFO, FORMAT, sampleID)
+          colnames(vcf_grpms)[colnames(vcf_grpms) == "sampleID"] <- samp
+          readr::write_tsv(as.data.frame(vcf_grpms), path = vcf_out)
+      }
+      return(gr_plot)
   })
   names(gr_plots) <- samps
   return(gr_plots)
