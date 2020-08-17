@@ -283,8 +283,6 @@ gr_super_set <- function(var_list, name_callers, impacts){
   #exclude MT, GL
   seqwant <- c(seq(from=1, to=22, by=1), "X")
 
-  print(call_1)
-  print(call_2)  
   ##iterate over samples in call_1, call_2 (calls from the two named callers)
   ##in the same sample
   if(length(call_1) > 1){
@@ -312,12 +310,13 @@ gr_super_set <- function(var_list, name_callers, impacts){
       ##therefore represent all possible variants per sample from any caller
       gr_11 <- calls_1[calls_1$IMPACT %in% impacts, names(S4Vectors::mcols(calls_1)) %in% mcols_want]
       gr_22 <- calls_2[calls_2$IMPACT %in% impacts, names(S4Vectors::mcols(calls_2)) %in% mcols_want]
-      gr_12 <- suppressWarnings(dplyr::setdiff(gr_22, gr_11))
+      gr_12 <- granges_sdin(gr_22, gr_11, "setdiff")
+
       S4Vectors::mcols(gr_11) <- S4Vectors::mcols(gr_11)[, mcols_want]
       S4Vectors::mcols(gr_12) <- S4Vectors::mcols(gr_12)[, mcols_want]
 
       ##add 1 and difference (the superset of variants)
-      gr_super[[x]] <- suppressWarnings(c(gr_11, gr_12))
+      gr_super[[x]] <- c(gr_11, gr_12)
     }
   } else {
       ##only one sample, return this
@@ -337,7 +336,7 @@ gr_super_set <- function(var_list, name_callers, impacts){
       ##sets of call_1, 2 and the difference
       gr_11 <- calls_1[calls_1$IMPACT %in% impacts, names(S4Vectors::mcols(calls_1)) %in% mcols_want]
       gr_22 <- calls_2[calls_2$IMPACT %in% impacts, names(S4Vectors::mcols(calls_2)) %in% mcols_want]
-      gr_12 <- suppressWarnings(dplyr::setdiff(gr_22, gr_11))
+      gr_12 <- granges_sdin(gr_22, gr_11, "setdiff")
 
       S4Vectors::mcols(gr_11) <- S4Vectors::mcols(gr_11)[, mcols_want]
       S4Vectors::mcols(gr_12) <- S4Vectors::mcols(gr_12)[, mcols_want]
@@ -375,7 +374,7 @@ at_least_two <- function (var_list, gr_super, tag){
               print(paste(callers[xx[1]], " vs. ", callers[xx[2]]))
               gr_1 <- var_list[[names(var_list)[xx[1]]]][[samp]]
               gr_2 <- var_list[[names(var_list)[xx[2]]]][[samp]]
-              suppressWarnings(dplyr::intersect(gr_2, gr_1))
+              gr_in <- granges_sdin(gr_2, gr_1, "intersect")
           })
       print("THERE_1")
       if (length(up_l1) > 1) {
@@ -394,7 +393,7 @@ at_least_two <- function (var_list, gr_super, tag){
           }
       }
       else {
-          gr_plot <- dplyr::intersect(gr_super[[samp]], unique(up_l1[[1]]))
+          gr_plot <- granges_sdin(gr_super[[samp]], unique(up_l1[[1]]), "intersect")
       }
       if (!length(names(gr_plot)) == 0) {
           file_out <- paste0(samp, ".", tag, ".consensus.tsv")
@@ -439,7 +438,7 @@ raw_afs <- function(raw_list, comb_gr){
     ##per sample, test which variants are found in entire set
     lapply(seq_along(raw_samp_list), function(raw_samp){
       fff <- raw_samp_list[[raw_samp]]
-      GenomeInfoDb::seqlevels(fff,  pruning.mode="coarse") <- GenomeInfoDb::seqlevels(comb_gr)
+      GenomeInfoDb::seqlevels(fff, pruning.mode="coarse") <- GenomeInfoDb::seqlevels(comb_gr)
       ffs <- sort(fff)
       ffsi <- ffs[ffs %in% comb_gr]
       afs[names(comb_gr) %in% names(ffs)] <- as.numeric(S4Vectors::mcols(ffsi)$AF)
@@ -790,4 +789,30 @@ gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, tag, in
     }
   }
   return(list(gr_super, plot_list))
+}
+
+#' Helper deals with setdiff, intersect to return full GRanges not just ranges
+#'
+#' @param granges_1 is a GRanges object
+#' @param granges_2 is a GRanges object
+#' @param method is 'setdiff' or 'intersect' to find difference of granges_1 vs. 2, or the intersect of the two
+#' @return GRanges object based on method
+#' @export
+
+granges_sdin <- function(granges_1, granges_2, method){
+  if(method == "setdiff"){
+    gr_sd <- suppressWarnings(GenomicRanges::setdiff(sort(granges_1), sort(granges_2)))
+    nms_12 <- paste0(GenomeInfoDb::seqnames(gr_sd), ":", BiocGenerics::start(IRanges::ranges(gr_sd)), "_")
+    grp_12 <- unlist(lapply(nms_12, function(f){
+                grep(f, names(granges_1), value=TRUE)
+              }))
+    granges_1[grp_12]
+  } else {
+    gr_sd <- suppressWarnings(GenomicRanges::intersect(sort(granges_1), sort(granges_2)))
+    nms_12 <- paste0(GenomeInfoDb::seqnames(gr_sd), ":", BiocGenerics::start(IRanges::ranges(gr_sd)), "_")
+    grp_12 <- unlist(lapply(nms_12, function(f){
+                grep(f, names(granges_1), value=TRUE)
+              }))
+    granges_1[grp_12]
+  }
 }

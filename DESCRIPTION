@@ -45,5 +45,5 @@ Suggests:
     plyr,
     grDevices,
     ComplexHeatmap,
-    grid,
-    rlang
+    grid
+    
