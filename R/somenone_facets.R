@@ -18,8 +18,8 @@ facets_cna_call <- function(input_csv){
   fit <- facets::emcncf(oo)
   ploidpurdf <- data.frame(PLOIDY = round(fit$ploidy, digits=3),
                            PURITY = round(fit$purity, digits=3))
-  readr::write_tsv(ploidpurdf, path = paste0(tumour,".fit_ploidy-purity.tsv"))
-  readr::write_tsv(round(fit$cncf, 3), path = paste0(tumour,".fit_cncf-jointsegs.tsv"))
+  readr::write_tsv(ploidpurdf, path = paste0(tumour,".fit_ploidy_purity.tsv"))
+  readr::write_tsv(round(fit$cncf, 3), path = paste0(tumour,".fit_cncf_jointsegs.tsv"))
   grDevices::pdf(paste0(tumour, ".facets_CNA.pdf"))
     facets::plotSample(x = oo, emfit = fit, plot.type = "both", sname = tumour)
   grDevices::dev.off()
