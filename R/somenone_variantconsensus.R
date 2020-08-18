@@ -38,40 +38,27 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
   }
 
   ##operate over vep, raw VCFs
-  for(x in 1:2) {
-    in_vec <- input_list[[x]]
-    callers <- unique(unlist(lapply(in_vec, function(f){
-                stringr::str_split(f, "\\.")[[1]][2]
-              })))
-    out_ext <- gsub("-","_",
-                   base::paste(stringr::str_split(
-                                  gsub("\\.vcf","",
-                                  in_vec[[1]]),
-                                  "\\.")[[1]][-c(1,2)],
-                        collapse="."))
-    print(paste0("Working on: ", out_ext))
+  callers <- unique(unlist(lapply(input_list[[1]], function(f){
+              stringr::str_split(f, "\\.")[[1]][2]
+            })))
+  out_ext <- gsub("-","_",
+                 base::paste(stringr::str_split(
+                                gsub("\\.vcf","",
+                                input_list[[1]]),
+                                "\\.")[[1]][-c(1,2)],
+                      collapse="."))
 
-    ##test if RData already exists, then make if not
-    ##uses both VEP annotated and raw VCFs
-    dir_test <- dir(pattern = paste0(out_ext, ".RData"))
-    if(length(dir_test) == 0){
-      somenone::rdata_gr_list(in_vec, germline_id, callers, out_ext, raw_vcf_pattern)
-    } else {
-      print(paste0("Found: ", out_ext, ".RData, this is used"))
-    }
-  }
-
-  ##load set of RData GRanges
-  print("Loading GRanges...")
-  rdata_in <- dir(pattern = ".RData")
-  loaded_gr <- lapply(rdata_in, function(x){
-    load(x, envir = .GlobalEnv)
-  })
-  names(loaded_gr) <- unlist(loaded_gr)
-
-  ##set GRnages into lists
-  raw_list <- get(loaded_gr$raw)
-  var_list <- get(loaded_gr[[vcf_ext]])
+  ##lists from both VEP annotated and raw VCFs
+  var_list <- somenone::rdata_gr_list(input_list[[1]],
+                                      germline_id,
+                                      callers,
+                                      out_ext = "snv_indel.pass.vep",
+                                      raw_vcf_pattern)
+  raw_list <- somenone::rdata_gr_list(input_list[[2]],
+                                      germline_id,
+                                      callers,
+                                      out_ext = "raw",
+                                      raw_vcf_pattern)
 
   ##callers used
   callers <- names(var_list)
@@ -134,12 +121,12 @@ rdata_gr_list <- function(in_vec, germline_id, callers, out_ext, raw_vcf_pattern
       ##parse VCFs from use_list based on caller, into gr_list
       gr_list[[caller]] <- lapply(in_vec[grep(caller, in_vec)], function(f){
         print(paste0("Parsing: ", f))
-        suppressWarnings(vcf_parse_gr(f, germline_id))
+        suppressWarnings(somenone::vcf_parse_gr(f, germline_id))
       })
     } else {
       gr_list[[caller]] <- lapply(in_vec[grep(caller, in_vec)], function(f){
         print(paste0("Parsing: ", f))
-        suppressWarnings(vcf_vep_ann_parse_soma_gr(f, germline_id))
+        suppressWarnings(somenone::vcf_vep_ann_parse_soma_gr(f, germline_id))
       })
     }
     samps <- unlist(lapply(in_vec, function(f) {
@@ -153,6 +140,7 @@ rdata_gr_list <- function(in_vec, germline_id, callers, out_ext, raw_vcf_pattern
   assign(assigned_name, value = gr_list)
   save_file <- paste0(out_ext, ".RData")
   save(list = assigned_name, file = save_file)
+  return(gr_list)
 }
 
 #' Parses for VCFs into GRanges object
@@ -368,7 +356,6 @@ at_least_two <- function (var_list, gr_super, tag){
       print(paste0("Working on: ", samps[x]))
       samp <- samps[x]
       gr_samp <- gr_super[[samp]]
-      print("THERE_0")
       up_l1 <- apply(t(utils::combn(length(callers), m = 2)),
           1, function(xx) {
               print(paste(callers[xx[1]], " vs. ", callers[xx[2]]))
@@ -376,38 +363,30 @@ at_least_two <- function (var_list, gr_super, tag){
               gr_2 <- var_list[[names(var_list)[xx[2]]]][[samp]]
               gr_in <- granges_sdin(gr_2, gr_1, "intersect")
           })
-      print("THERE_1")
-      if (length(up_l1) > 1) {
+      if(length(up_l1) > 1) {
           up_l2 <- up_l1[[1]]
-          print("THERE_2")
           for (xx in 2:length(up_l1)) {
               up_l2 <- suppressWarnings(c(up_l2, up_l1[[xx]]))
           }
           if (!is.null(names(gr_super[[samp]]))) {
-              print("THERE_3")
               gr_plot <- gr_samp[names(gr_samp) %in%
                 unique(names(up_l2))]
           }
           else {
               gr_plot <- GRanges()
           }
-      }
-      else {
+      } else {
           gr_plot <- granges_sdin(gr_super[[samp]], unique(up_l1[[1]]), "intersect")
       }
       if (!length(names(gr_plot)) == 0) {
           file_out <- paste0(samp, ".", tag, ".consensus.tsv")
           vcf_out <- paste0(samp, ".", tag, ".pcgr.all.tsv.vcf")
           readr::write_tsv(as.data.frame(gr_plot), path = file_out)
-          print("HERE_0")
           vcf_grp <- tibble::as_tibble(as.data.frame(gr_plot))
           vcf_grp <- dplyr::mutate(vcf_grp, r = names(gr_plot))
-          print("HERE_1")
           vcf_grps <- tidyr::separate(vcf_grp, r, c("#CHROM",
               "POS", "REF", "ALT"), sep = "[:_\\/]")
-          print("HERE_2")
           vcf_grpr <- dplyr::rename(vcf_grps, AD1 = "AD.1")
-          print("HERE_3")
           vcf_grpm <- dplyr::mutate(vcf_grpr, POS = as.integer(POS),
               ID = ".", QUAL = ".", INFO = ".", FILTER = "PASS",
               FORMAT = "GT:DPC:DPT:ADC:ADT", ADSUM = as.numeric(AD) +
@@ -431,18 +410,59 @@ at_least_two <- function (var_list, gr_super, tag){
 #' @return data.frame object of raw variant call allele frequencies
 #' @export
 
-raw_afs <- function(raw_list, comb_gr){
-  ##ff contains all GR of each sample for the caller
-  as.data.frame(lapply(raw_list, function(raw_samp_list){
-    afs <- rep(as.numeric(0), length(comb_gr))
-    ##per sample, test which variants are found in entire set
-    lapply(seq_along(raw_samp_list), function(raw_samp){
-      fff <- raw_samp_list[[raw_samp]]
-      GenomeInfoDb::seqlevels(fff, pruning.mode="coarse") <- GenomeInfoDb::seqlevels(comb_gr)
-      ffs <- sort(fff)
-      ffsi <- ffs[ffs %in% comb_gr]
-      afs[names(comb_gr) %in% names(ffs)] <- as.numeric(S4Vectors::mcols(ffsi)$AF)
-      return(afs)
+raw_afs <- function(raw_list, comb_gr, samps = NULL){
+
+  ##if no samp input
+  if(is.null(samps)){
+    samps <- names(raw_list[[1]])
+  }
+  print("THIS_0")
+
+  ##raw_samp is index of samples in raw_list elements
+  print("THIS_1")
+
+  as.data.frame(lapply(seq_along(raw_list[[1]]), function(sampi){
+
+    ##set up a base of zeroes from the combined variants
+    afs <- data.frame(rep(as.numeric(0), length(comb_gr)))
+
+    ##test if samp is required
+    print("THIS_2")
+
+    samp <- names(raw_list[[1]])[sampi]
+
+    ##per caller, test which variants are found in raw set across callers
+    lapply(seq_along(raw_list), function(calleri){
+      print("THIS_3")
+
+      raw_caller <- raw_list[[calleri]]
+      if(!samp %in% samps){
+        print("THIS_4")
+
+        colnames(afs) <- paste(names(raw_list)[calleri], samp, sep = ".")
+        return(afs)
+      } else {
+        print("THIS_5")
+        fff <- raw_caller[[samp]]
+        # GenomeInfoDb::seqlevels(fff, pruning.mode="coarse") <- GenomeInfoDb::seqlevels(comb_gr)
+        ffs <- BiocGenerics::sort(fff)
+        print("THIS_6")
+
+        ##test that some names are found, else return just zeroes
+        match_cgr_ffs <- unique(names(comb_gr) %in% names(ffs))
+        print(names(comb_gr) %in% names(ffs))
+        if(length(match_cgr_ffs) > 1 | "TRUE" %in% match_cgr_ffs){
+          print("THIS_7")
+          ffsi <- ffs[names(ffs) %in% names(comb_gr)]
+          afs[names(comb_gr) %in% names(ffs),] <- as.numeric(S4Vectors::mcols(ffsi)$AF)
+          print("THIS_8")
+          colnames(afs) <- paste(names(raw_list)[calleri], samp, sep = ".")
+          return(afs)
+        } else {
+          colnames(afs) <- paste(names(raw_list)[calleri], samp, sep = ".")
+          return(afs)
+        }
+      }
     })
   }))
 }
@@ -468,7 +488,7 @@ plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
   ##combined set of all samples variants
   comb_gr <- suppressWarnings(unique(do.call("c", unname(plot_list))))
   GenomeInfoDb::seqlevels(comb_gr) <- sort(GenomeInfoDb::seqlevels(comb_gr))
-  comb_gr <- sort(comb_gr)
+  comb_gr <- BiocGenerics::sort(comb_gr)
   comb_df <- as.data.frame(comb_gr)
 
   ##labels for plot
@@ -483,7 +503,7 @@ plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
   ##take comb_gr positions, then query raw calls for them
   ##allows 'rescue' of those falling out because of filters
   ##use raw allele frequencies
-  plot_df_raw_afs <- somenone::raw_afs(raw_list, comb_gr)
+  plot_df_raw_afs <- raw_afs(raw_list, comb_gr)
 
   ##rename based on callers.samp
   colnames(plot_df_raw_afs) <- unlist(lapply(names(raw_list), function(f){
@@ -584,7 +604,7 @@ plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
 #' Create two plots: all consensus, those in 2+ samples
 #'
 #' @importFrom rlang .data
-#' @param plot_list is a nested list of plot data [[caller]][[samples1..n]]
+#' @param plot_list is a list of one named GRanges object
 #' @param raw_list is a nested list of raw calls [[caller]][[samples1..n]]
 #' @param tag is a string to tag output files
 #' @param included_order ordering of samples for plotting
@@ -593,13 +613,16 @@ plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
 
 plot_consensus_single <- function(plot_list, raw_list, tag, included_order){
 
+
+  print(length(raw_list))
+  #print(names(raw_list[[1]]))
   ##remove hyphens
   samp <- names(plot_list)[1]
 
   ##combined set of all samples
   comb_gr <- suppressWarnings(unique(plot_list[[1]]))
   GenomeInfoDb::seqlevels(comb_gr) <- sort(GenomeInfoDb::seqlevels(comb_gr))
-  comb_gr <- sort(comb_gr)
+  comb_gr <- BiocGenerics::sort(comb_gr)
   comb_df <- as.data.frame(comb_gr)
 
   ##labels for plot
@@ -614,12 +637,16 @@ plot_consensus_single <- function(plot_list, raw_list, tag, included_order){
   ##take those positions, then query raw calls
   ##allows 'rescue' of those falling out from arbitrary filters
   ##enough support previously to allow re-entry
-  plot_df_raw_afs <- raw_afs(raw_list, comb_gr)
+
+  plot_df_raw_afs <- raw_afs(raw_list = raw_list, comb_gr = comb_gr, samps = samp)
 
   ##rename based on callers.samp
   colnames(plot_df_raw_afs) <- unlist(lapply(names(raw_list), function(f){
-    paste(f, samp, sep=".")
+    paste0(f, ".", names(raw_list[[1]]))
   }))
+
+  ##remove the non-samp samps
+  plot_df_raw_afs <- plot_df_raw_afs[,grep(samp, colnames(plot_df_raw_afs))]
 
   ##take maximum AF from the two callers
   plot_df_raw_max <- do.call(cbind, lapply(samp, function(ss){
@@ -699,7 +726,7 @@ write_consensus_all <- function(plot_list, plot_df, tag, included_order, cons){
   ##test any output
   out_gr <- suppressWarnings(unique(do.call("c", unname(plot_out))))
   GenomeInfoDb::seqlevels(out_gr) <- sort(GenomeInfoDb::seqlevels(out_gr))
-  out_gr <- sort(out_gr)
+  out_gr <- BiocGenerics::sort(out_gr)
   out_df <- as.data.frame(out_gr)
 
   if(dim(out_df)[1] != 0){
@@ -755,19 +782,25 @@ sub_hgvsp <- function(in_vec){
 
 gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, tag, included_order) {
 
+
+
   ##GRanges superset
   gr_super <- somenone::gr_super_set(var_list, name_callers, impacts)
 
   ##get list to plot from with at least two callers supporting
   plot_list <- somenone::at_least_two(var_list, gr_super, tag)
 
+
   ##if single sample plot_list is actually a GRanges object(!)
+  print("THAT_0")
   if(!is.list(plot_list)){
+
     somenone::plot_consensus_single(plot_list, raw_list, tag)
   } else {
+
     ##test for empty and rename to exclude those empty
     nz_plot_list <- lapply(seq_along(plot_list), function(f){
-      if(length(plot_list[[f]])!=0){
+      if(length(plot_list[[f]]) != 0){
         return(plot_list[[f]])
       }
     })
@@ -775,15 +808,22 @@ gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, tag, in
       if(length(plot_list[[f]])!=0){
         return(names(plot_list)[f])
     }}))
+
+    ##remove NULL (where nothing was returned above)
     nz_plot_list[sapply(nz_plot_list, is.null)] <- NULL
     names(nz_plot_list) <- nm_vec
+
+
     ##based on elements in nz_plot_list, plot or do not
     if(length(nz_plot_list) == 0){
       print(paste0("No variants for IMPACTS: ", impacts, ", support across callers lacking"))
     } else {
       if(length(nz_plot_list) == 1){
-        somenone::plot_consensus_single(nz_plot_list[[1]], raw_list, tag)
+
+        print("Plot 'consensus' on single sample...")
+        somenone::plot_consensus_single(plot_list = nz_plot_list, raw_list = raw_list, tag = tag)
       } else {
+        print("Plot consensus...")
         somenone::plot_consensus_list(nz_plot_list, raw_list, tag, included_order)
       }
     }
@@ -801,18 +841,18 @@ gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, tag, in
 
 granges_sdin <- function(granges_1, granges_2, method){
   if(method == "setdiff"){
-    gr_sd <- suppressWarnings(GenomicRanges::setdiff(sort(granges_1), sort(granges_2)))
+    gr_sd <- suppressWarnings(GenomicRanges::setdiff(BiocGenerics::sort(granges_1), BiocGenerics::sort(granges_2)))
     nms_12 <- paste0(GenomeInfoDb::seqnames(gr_sd), ":", BiocGenerics::start(IRanges::ranges(gr_sd)), "_")
     grp_12 <- unlist(lapply(nms_12, function(f){
                 grep(f, names(granges_1), value=TRUE)
               }))
-    granges_1[grp_12]
+    return(granges_1[grp_12])
   } else {
-    gr_sd <- suppressWarnings(GenomicRanges::intersect(sort(granges_1), sort(granges_2)))
+    gr_sd <- suppressWarnings(GenomicRanges::intersect(BiocGenerics::sort(granges_1), BiocGenerics::sort(granges_2)))
     nms_12 <- paste0(GenomeInfoDb::seqnames(gr_sd), ":", BiocGenerics::start(IRanges::ranges(gr_sd)), "_")
     grp_12 <- unlist(lapply(nms_12, function(f){
                 grep(f, names(granges_1), value=TRUE)
               }))
-    granges_1[grp_12]
+    return(granges_1[grp_12])
   }
 }
