@@ -4,12 +4,14 @@
 \alias{plot_cna_df}
 \title{Processing list of Facets input}
 \usage{
-plot_cna_df(cna_df, cum_sum_add, cna_max = 8)
+plot_cna_df(cna_df, cum_sum_add, seqlength, cna_max = 8)
 }
 \arguments{
 \item{cna_df}{data frame created in facets_cna_consensus()}
 
 \item{cum_sum_add}{data_frame created in seqlengths_df()}
+
+\item{seqlength}{a data.frame made by seqlengths_df}
 
 \item{cna_max}{max CNA call to plot (eveything else is squashed to this}
 }

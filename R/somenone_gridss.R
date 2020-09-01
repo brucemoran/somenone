@@ -9,7 +9,7 @@
 #' @return none, plots recurrent and private SVs and writes output to TSV format file
 #' @export
 
-gridss_parse_plot <- function(vcf, dict_file, which_genome = NULL, output_path = NULL){
+gridss_parse_plot <- function(vcf, dict_file, germline_id, which_genome = NULL, output_path = NULL){
 
   ##set genome as hg19 unless spec'd
   if (is.null(which_genome)){
@@ -22,6 +22,7 @@ gridss_parse_plot <- function(vcf, dict_file, which_genome = NULL, output_path =
   }
 
   gridss_parsed_multi_list <- gridss_parse_multi_vcf(vcf = vcf,
+                                                     germline_id = germline_id,
                                                      which_genome = which_genome)
   rec_df <- as.data.frame(gridss_parsed_multi_list[[1]])
   prv_df <- as.data.frame(gridss_parsed_multi_list[[2]])
@@ -44,7 +45,7 @@ gridss_parse_plot <- function(vcf, dict_file, which_genome = NULL, output_path =
 #' @return a list with recurrent SVs and private SVs as elements
 #' @export
 
-gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
+gridss_parse_multi_vcf <- function(vcf, germline_id, which_genome = NULL){
 
   options(stringsAsFactors = FALSE)
   sampleID <- num_rows <- qualscore <- vars <- bedpe_list_filter <- n <- NULL
@@ -55,7 +56,7 @@ gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
   }
 
   ##set samplenames
-  sample_names <- VariantAnnotation::samples(VariantAnnotation::scanVcfHeader(vcf))
+  sample_names <- grep(germline_id,     VariantAnnotation::samples(VariantAnnotation::scanVcfHeader(vcf)), value = TRUE, invert = TRUE)
 
   ##readVcf and get per-sample GRanges
   rvcf <- VariantAnnotation::readVcf(vcf, genome = which_genome)
@@ -67,13 +68,16 @@ gridss_parse_multi_vcf <- function(vcf, which_genome = NULL){
   bpgr_list <- lapply(sample_names, function(samp) {
 
     ##get sample-specific bpgr object
-    bpgr[VariantAnnotation::geno(rvcf[bpgr$sourceId])$QUAL[, samp] >= 2]
+#    bpgr[VariantAnnotation::geno(rvcf[bpgr$sourceId])$QUAL[, samp] >= 2]
+    ##older version has vcfId vs. sourceId
+    bpgr[VariantAnnotation::geno(rvcf[bpgr$vcfId])$QUAL[, samp] >= 2]
+
   })
 
   names(bpgr_list) <- sample_names
 
   ##make single bedpe for all VCFs
-  gridss_bedpe_list <- gridss_bedpe_list(bpgr_list, which_genome)
+  gridss_bedpe_list <- somenone::gridss_bedpe_list(bpgr_list, which_genome)
   bedpe_rb <- do.call(rbind, gridss_bedpe_list)
 
   ##find reccuring events (same at 1,2,3,4,5,6,7,8)
@@ -137,22 +141,29 @@ gridss_bedpe_list <- function(bpgr_list, which_genome, qual_filt = 2) {
 
     print(paste0("Working on: ", names(bpgr_list)[f]))
     gr <- bpgr_list[[f]]
-
+    print("HERE_0")
     ##remove non-found partners!
     pairs <- StructuralVariantAnnotation::breakpointgr2pairs(gr)
+    print("HERE_1")
     grp <- gr[names(gr) %in% S4Vectors::mcols(pairs)[,"name"]]
+    print("HERE_2")
     gr_partner <- gr[names(gr) %in% grp$partner,]
 
     ##force into only 1:22, X
+    print("HERE_3")
     GenomeInfoDb::seqlevels(grp, pruning.mode = "coarse") <- GenomeInfoDb::seqlevels(grp)[c(1:23)]
 
     ##annotate
+    print("HERE_4")
     grp_anno <- gridss_annotate_gr(grp, which_genome)
+    print("HERE_5")
     gr_partner_anno <- gridss_annotate_gr(gr_partner, which_genome)
+    print("HERE_6")
     grp_anno_use <- grp_anno[names(grp_anno) %in% gr_partner_anno$partner]
     gr_partner_anno_use <- gr_partner_anno[names(gr_partner_anno) %in% grp_anno_use$partner]
 
     #bedpe for input, simplest format
+    print("HERE_7")
     bedpe1k <- data.frame(chrom1 = as.data.frame(grp_anno_use)[,1],
                           start1 = c(as.data.frame(grp_anno_use)[,2]),
                           end1 = c(as.data.frame(grp_anno_use)[,3]),
@@ -192,16 +203,18 @@ gridss_annotate_gr <- function(gr, which_genome) {
   hits <- as.data.frame(GenomicRanges::findOverlaps(gr,
                                                     gns,
                                                     ignore.strand=TRUE))
-  hits$SYMBOL <- suppressMessages(biomaRt::select(org.Hs.eg.db::org.Hs.eg.db,
-                              gns[hits$subjectHits]$gene_id, "SYMBOL")$SYMBOL)
-  hits$gene_strand <- as.character(BiocGenerics::strand(gns[hits$subjectHits]))
+  if(dim(hits)[1] > 0){
+    hits$SYMBOL <- suppressMessages(biomaRt::select(org.Hs.eg.db::org.Hs.eg.db,
+                                gns[hits$subjectHits]$gene_id, "SYMBOL")$SYMBOL)
+    hits$gene_strand <- as.character(BiocGenerics::strand(gns[hits$subjectHits]))
 
-  ##add annotation to grp
-  gr$SYMBOL <- gr$geneStrand <- ""
-  gr$SYMBOL[hits$queryHits] <- hits$SYMBOL
-  gr$geneStrand[hits$queryHits] <- hits$gene_strand
+    ##add annotation to grp
+    gr$SYMBOL <- gr$geneStrand <- ""
+    gr$SYMBOL[hits$queryHits] <- hits$SYMBOL
+    gr$geneStrand[hits$queryHits] <- hits$gene_strand
 
-  return(gr)
+    return(gr)
+  }
 }
 
 #' OmicCircos plotting from data.frame from GRIDSS bedpe

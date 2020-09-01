@@ -4,7 +4,7 @@
 \alias{raw_afs}
 \title{Generate raw allele frequencies from list of GRanges}
 \usage{
-raw_afs(raw_list, comb_gr)
+raw_afs(raw_list, comb_gr, samps = NULL)
 }
 \arguments{
 \item{raw_list}{is a nested list of raw calls [[caller]][[samples1..n]]}
