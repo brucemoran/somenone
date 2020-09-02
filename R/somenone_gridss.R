@@ -13,7 +13,12 @@ gridss_parse_plot <- function(vcf, dict_file, germline_id, which_genome = NULL, 
 
   ##set genome as hg19 unless spec'd
   if (is.null(which_genome)){
+    if(unlist(lapply(c("19", "37"), function(f){grep(f, dict_file)})) > 0){
     which_genome <- "hg19"
+    }
+    else{
+      which_genome <- "hg38"
+    }
   }
 
   ##set output_path based on VCF if NULL
@@ -27,16 +32,16 @@ gridss_parse_plot <- function(vcf, dict_file, germline_id, which_genome = NULL, 
   rec_df <- as.data.frame(gridss_parsed_multi_list[[1]])
   prv_df <- as.data.frame(gridss_parsed_multi_list[[2]])
 
-  plot_circos_sv(input_df = rec_df,
-                 dict_file = dict_file,
-                 which_genome = which_genome,
-                 output_path = paste0(output_path, ".recurrent"))
-  plot_circos_sv(input_df = prv_df,
-                 dict_file = dict_file,
-                 which_genome = which_genome,
-                 output_path = paste0(output_path, ".private"))
+  ##plotting
+  prep_plot_circos_sv(input_df = rec_df,
+                      dict_file = dict_file,
+                      which_genome = which_genome,
+                      output_path = paste0(output_path, ".recurrent"))
+  prep_plot_circos_sv(input_df = prv_df,
+                      dict_file = dict_file,
+                      which_genome = which_genome,
+                      output_path = paste0(output_path, ".private"))
 }
-
 
 #' Parse multi-sample VCF (recommended output of GRIDSS)
 #'
@@ -141,29 +146,22 @@ gridss_bedpe_list <- function(bpgr_list, which_genome, qual_filt = 2) {
 
     print(paste0("Working on: ", names(bpgr_list)[f]))
     gr <- bpgr_list[[f]]
-    print("HERE_0")
+
     ##remove non-found partners!
     pairs <- StructuralVariantAnnotation::breakpointgr2pairs(gr)
-    print("HERE_1")
     grp <- gr[names(gr) %in% S4Vectors::mcols(pairs)[,"name"]]
-    print("HERE_2")
     gr_partner <- gr[names(gr) %in% grp$partner,]
 
     ##force into only 1:22, X
-    print("HERE_3")
     GenomeInfoDb::seqlevels(grp, pruning.mode = "coarse") <- GenomeInfoDb::seqlevels(grp)[c(1:23)]
 
     ##annotate
-    print("HERE_4")
     grp_anno <- gridss_annotate_gr(grp, which_genome)
-    print("HERE_5")
     gr_partner_anno <- gridss_annotate_gr(gr_partner, which_genome)
-    print("HERE_6")
     grp_anno_use <- grp_anno[names(grp_anno) %in% gr_partner_anno$partner]
     gr_partner_anno_use <- gr_partner_anno[names(gr_partner_anno) %in% grp_anno_use$partner]
 
     #bedpe for input, simplest format
-    print("HERE_7")
     bedpe1k <- data.frame(chrom1 = as.data.frame(grp_anno_use)[,1],
                           start1 = c(as.data.frame(grp_anno_use)[,2]),
                           end1 = c(as.data.frame(grp_anno_use)[,3]),
@@ -195,8 +193,8 @@ gridss_annotate_gr <- function(gr, which_genome) {
     gns <- suppressMessages(GenomicFeatures::genes(TxDb.Hsapiens.UCSC.hg38.knownGene::TxDb.Hsapiens.UCSC.hg38.knownGene))
   }
 
-  ##remove chr if no chr
-  if(! "chr1" %in% levels(GenomeInfoDb::seqnames(gr))){
+  ##remove chr if chr in seqnames
+  if(length(grep("chr", levels(GenomeInfoDb::seqnames(gr)))) == 0){
     gns <- GenomeInfoDb::renameSeqlevels(gns, sub("chr", "", GenomeInfoDb::seqlevels(gns)))
   }
 
@@ -222,12 +220,12 @@ gridss_annotate_gr <- function(gr, which_genome) {
 #'   chrom2, start2, end2, symbol2, sampleID, colour columns
 #' @param which_genome, genome assembly used ("hg19", "hg38")
 #' @param dict_file dictionary file for fasta used in alignment
-#' @param pdf_path path to where PDF file with output plot is written
+#' @param output_path path to where PDF file with output plot is written
 #'    N.B. two pages, one with Circos plot and one with legend
-#' @return none, prints plot to file
+#' @return none, prints plot to file, and a file too
 #' @export
 
-plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
+prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 
   if(!is.data.frame(input_df)){
     print("Require data.frame input with chromsomes as factors")
@@ -238,12 +236,14 @@ plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 
     ##impose condition that over 200 SVs in input_df
     ##plot only those that are on different chromosomes
+    input_df_tr_2 <- NULL
+
     if(dim(input_df)[1] > 50){
-      print(paste0("Total of ", dim(input_df)[1], " SV found, reducing to those on different chromosomes"))
-      input_df_tr <- input_df[as.vector(input_df$chrom1) != as.vector(input_df$chrom2),]
-      print(paste0("Now using with ", dim(input_df)[1], " SV"))
+      print(paste0("Total of ", dim(input_df)[1], " SV found, also plotting those on different chromosomes only"))
+      input_df_tr_2 <- input_df[as.vector(input_df$chrom1) != as.vector(input_df$chrom2),]
+      input_df_tr_1 <- input_df
     } else {
-      input_df_tr <- input_df
+      input_df_tr_1 <- input_df
     }
 
     ##create seqlengths df for ideogram
@@ -258,61 +258,77 @@ plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
       cytoband <- utils::read.table(tempf)
     }
 
-    ##circlize requires 'chr' label on chroms
-    input_df_tr[,1] <- paste0("chr", input_df_tr[,1])
-    input_df_tr[,5] <- paste0("chr", input_df_tr[,5])
-
-    ##test all chrs are in each set of regions
-    region_1 <- data.frame(chr = input_df_tr[,"chrom1"],
-                        start = input_df_tr[,"start1"],
-                        end = input_df_tr[,"end1"])
-    region_2 <- data.frame(region = input_df_tr[,"chrom2"],
-                        start = input_df_tr[,"start2"],
-                        end = input_df_tr[,"end2"])
-    region_1_in <- region_1[,1] %in% cytoband[,1]
-    region_2_in <- region_2[,1] %in% cytoband[,1]
-    region_1 <- region_1[region_1_in & region_2_in,]
-    region_2 <- region_2[region_1_in & region_2_in,]
-    region_c <- input_df_tr[region_1_in & region_2_in, "colour"]
-    labels_o1 <- input_df_tr[region_1_in & region_2_in, c("chrom1", "start1", "end1", "symbol1", "colour")]
-    labels_o2 <- input_df_tr[region_1_in & region_2_in, c("chrom2", "start2", "end2", "symbol2", "colour")]
-    colnames(labels_o1) <- colnames(labels_o2) <- c("chr1", "start", "end", "symbol", "colour")
-    labels_o <- rbind(labels_o1, labels_o2)
-
-    ##circize plot
-    ##colours per-sample
-    grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
-
-    ##initialise blank ideogram
-    circlize::circos.initializeWithIdeogram(plotType = NULL)
-    ##labels on outer track if enough space...
-    if(dim(region_1)[1] < 150) {
-    circlize::circos.genomicLabels(labels_o,
-                         labels.column = "symbol",
-                         side = "outside",
-                         col = labels_o$colour,
-                         line_col = labels_o$colour)
+    plot_circos_sv(input_df_tr_1, output_path, cytoband)
+    if(!is.null(input_df_tr_2)){
+      plot_circos_sv(input_df_tr_2, paste0(output_path, ".diff_chrs"), cytoband)
     }
-    ##cytoband data
-    circlize::circos.genomicIdeogram(cytoband)
-
-    ##links
-    circlize::circos.genomicLink(region1 = region_1,
-                                 region2 = region_2,
-                                 col = region_c)
-    ##legend
-    nms <- gsub(",", ", ", unique(names(region_c)))
-    colz <- unique(region_c)
-    lgnd <- ComplexHeatmap::Legend(at = nms,
-                                   type = "lines",
-                                   legend_gp = grid::gpar(col = colz, lwd = 4),
-                                   title_position = "topleft",
-                                   title = "Legend")
-
-    ##plot legend on a new page to allow manipulation into final image
-    grid::grid.newpage()
-    grid::grid.draw(lgnd)
-
-    grDevices::dev.off()
   }
+}
+
+#' OmicCircos plotting from data.frame from GRIDSS bedpe
+#' @param input_df data.frame with chrom1, start1, end1, symbol1,
+#'   chrom2, start2, end2, symbol2, sampleID, colour columns
+#' @param output_path path to where PDF file with output plot is written
+#'    N.B. two pages, one with Circos plot and one with legend
+#' @return none, prints plot to file
+#' @export
+
+plot_circos_sv <- function(input_df, output_path, cytoband){
+
+  ##circlize requires 'chr' label on chroms
+  input_df[,1] <- paste0("chr", input_df[,1])
+  input_df[,5] <- paste0("chr", input_df[,5])
+
+  ##test all chrs are in each set of regions
+  region_1 <- data.frame(chr = input_df[,"chrom1"],
+                      start = input_df[,"start1"],
+                      end = input_df[,"end1"])
+  region_2 <- data.frame(region = input_df[,"chrom2"],
+                      start = input_df[,"start2"],
+                      end = input_df[,"end2"])
+  region_1_in <- region_1[,1] %in% cytoband[,1]
+  region_2_in <- region_2[,1] %in% cytoband[,1]
+  region_1 <- region_1[region_1_in & region_2_in,]
+  region_2 <- region_2[region_1_in & region_2_in,]
+  region_c <- input_df[region_1_in & region_2_in, "colour"]
+  labels_o1 <- input_df[region_1_in & region_2_in, c("chrom1", "start1", "end1", "symbol1", "colour")]
+  labels_o2 <- input_df[region_1_in & region_2_in, c("chrom2", "start2", "end2", "symbol2", "colour")]
+  colnames(labels_o1) <- colnames(labels_o2) <- c("chr1", "start", "end", "symbol", "colour")
+  labels_o <- rbind(labels_o1, labels_o2)
+
+  ##circize plot
+  ##colours per-sample
+  grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
+
+  ##initialise blank ideogram
+  circlize::circos.initializeWithIdeogram(plotType = NULL)
+  ##labels on outer track if enough space...
+  if(dim(region_1)[1] < 200) {
+  circlize::circos.genomicLabels(labels_o,
+                       labels.column = "symbol",
+                       side = "outside",
+                       col = labels_o$colour,
+                       line_col = labels_o$colour)
+  }
+  ##cytoband data
+  circlize::circos.genomicIdeogram(cytoband)
+
+  ##links
+  circlize::circos.genomicLink(region1 = region_1,
+                               region2 = region_2,
+                               col = region_c)
+  ##legend
+  nms <- gsub(",", ", ", unique(names(region_c)))
+  colz <- unique(region_c)
+  lgnd <- ComplexHeatmap::Legend(at = nms,
+                                 type = "lines",
+                                 legend_gp = grid::gpar(col = colz, lwd = 4),
+                                 title_position = "topleft",
+                                 title = "Legend")
+
+  ##plot legend on a new page to allow manipulation into final image
+  grid::grid.newpage()
+  grid::grid.draw(lgnd)
+
+  grDevices::dev.off()
 }

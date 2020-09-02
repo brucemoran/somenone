@@ -4,7 +4,13 @@
 \alias{gridss_parse_plot}
 \title{GRIDSS functions}
 \usage{
-gridss_parse_plot(vcf, dict_file, which_genome = NULL, output_path = NULL)
+gridss_parse_plot(
+  vcf,
+  dict_file,
+  germline_id,
+  which_genome = NULL,
+  output_path = NULL
+)
 }
 \arguments{
 \item{vcf, }{the VCF file path}

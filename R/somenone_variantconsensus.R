@@ -69,6 +69,7 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
                      lapply(seq_along(var_list[[x]]), function(y){
                        length(var_list[[x]][[y]])
                      })}))
+  ##run twice as for some reason results differ from 1st to 2nd, but not beyond(?)
   any_vars <- unlist(lapply(seq_along(var_list), function(x){
                     lapply(seq_along(var_list[[x]]), function(y){
                       length(var_list[[x]][[y]])
@@ -76,23 +77,31 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
   if(all(any_vars > 0)){
 
     ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
-    grsuper_plot_list <- somenone::gr_super_alt_plot(var_list,
+    grsuper_plot_high <- somenone::gr_super_alt_plot(var_list,
+                                           raw_list,
+                                           two_callers,
+                                           impacts = c("HIGH"),
+                                           taga = paste0(tag, ".HIGH_impacts"),
+                                           included_order)
+
+
+    grsuper_plot_hm <- somenone::gr_super_alt_plot(var_list,
                                            raw_list,
                                            two_callers,
                                            impacts = c("HIGH", "MODERATE"),
-                                           tag,
+                                           taga = paste0(tag, ".HM_impacts"),
                                            included_order)
 
     ##run to get all impacts, print but not plot
     ##get GRanges superset per mutype
-    grsuper_plot_list <- somenone::gr_super_alt_plot(var_list,
+    grsuper_plot_all <- somenone::gr_super_alt_plot(var_list,
                                            raw_list,
                                            two_callers,
                                            impacts = c("HIGH", "MODERATE", "MODIFIER", "LOW"),
-                                           tag,
+                                           taga = paste0(tag, ".ALL_impacts"),
                                            included_order)
   } else {
-    print("No varaints found in one or more callers, please check and exclude")
+    print("No variants found in one or more callers, please check and exclude")
   }
 }
 
@@ -253,7 +262,7 @@ gr_super_set <- function(var_list, name_callers, impacts){
   print("Super-setting GRanges for IMPACTs:")
   print(impacts)
   ##set wanted mcols
-  mcols_want <- c("AD", "AD.1", "AF", "Consequence", "IMPACT", "SYMBOL", "HGVSc", "HGVSp", "CLIN_SIG")
+  mcols_want <- c("AD", "AD.1", "AF", "Consequence", "IMPACT", "SYMBOL", "HGVSc", "HGVSp", "HGVSp1", "CLIN_SIG")
 
   if(length(name_callers) != 2){
     print("Require only 2 callers, no more and no less!")
@@ -416,46 +425,34 @@ raw_afs <- function(raw_list, comb_gr, samps = NULL){
   if(is.null(samps)){
     samps <- names(raw_list[[1]])
   }
-  print("THIS_0")
 
   ##raw_samp is index of samples in raw_list elements
-  print("THIS_1")
-
   as.data.frame(lapply(seq_along(raw_list[[1]]), function(sampi){
 
     ##set up a base of zeroes from the combined variants
     afs <- data.frame(rep(as.numeric(0), length(comb_gr)))
 
     ##test if samp is required
-    print("THIS_2")
-
     samp <- names(raw_list[[1]])[sampi]
 
     ##per caller, test which variants are found in raw set across callers
     lapply(seq_along(raw_list), function(calleri){
-      print("THIS_3")
 
       raw_caller <- raw_list[[calleri]]
       if(!samp %in% samps){
-        print("THIS_4")
-
         colnames(afs) <- paste(names(raw_list)[calleri], samp, sep = ".")
         return(afs)
       } else {
-        print("THIS_5")
         fff <- raw_caller[[samp]]
         # GenomeInfoDb::seqlevels(fff, pruning.mode="coarse") <- GenomeInfoDb::seqlevels(comb_gr)
         ffs <- BiocGenerics::sort(fff)
-        print("THIS_6")
 
         ##test that some names are found, else return just zeroes
         match_cgr_ffs <- unique(names(comb_gr) %in% names(ffs))
-        print(names(comb_gr) %in% names(ffs))
+        #print(names(comb_gr) %in% names(ffs))
         if(length(match_cgr_ffs) > 1 | "TRUE" %in% match_cgr_ffs){
-          print("THIS_7")
           ffsi <- ffs[names(ffs) %in% names(comb_gr)]
           afs[names(comb_gr) %in% names(ffs),] <- as.numeric(S4Vectors::mcols(ffsi)$AF)
-          print("THIS_8")
           colnames(afs) <- paste(names(raw_list)[calleri], samp, sep = ".")
           return(afs)
         } else {
@@ -568,6 +565,7 @@ plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
 
   if(! is.null(plot_vec) ){
     if(dim(plot_vec)[1] != 0){
+      ##sort by included order
       plot_labels <- rep("", dim(plot_vec)[1])
       row_fontsize <- 1
       colz <- grDevices::colorRampPalette(c("lightgrey", "dodgerblue", "blue"))
@@ -613,10 +611,6 @@ plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
 
 plot_consensus_single <- function(plot_list, raw_list, tag, included_order){
 
-
-  print(length(raw_list))
-  #print(names(raw_list[[1]]))
-  ##remove hyphens
   samp <- names(plot_list)[1]
 
   ##combined set of all samples
@@ -780,22 +774,19 @@ sub_hgvsp <- function(in_vec){
 #' @return GRanges object of all  of single-letter HGVS protein IDs
 #' @export
 
-gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, tag, included_order) {
-
-
+gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, taga, included_order) {
 
   ##GRanges superset
   gr_super <- somenone::gr_super_set(var_list, name_callers, impacts)
 
   ##get list to plot from with at least two callers supporting
-  plot_list <- somenone::at_least_two(var_list, gr_super, tag)
+  plot_list <- somenone::at_least_two(var_list, gr_super, taga)
 
 
   ##if single sample plot_list is actually a GRanges object(!)
-  print("THAT_0")
   if(!is.list(plot_list)){
 
-    somenone::plot_consensus_single(plot_list, raw_list, tag)
+    somenone::plot_consensus_single(plot_list, raw_list, taga)
   } else {
 
     ##test for empty and rename to exclude those empty
@@ -813,18 +804,16 @@ gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, tag, in
     nz_plot_list[sapply(nz_plot_list, is.null)] <- NULL
     names(nz_plot_list) <- nm_vec
 
-
     ##based on elements in nz_plot_list, plot or do not
     if(length(nz_plot_list) == 0){
       print(paste0("No variants for IMPACTS: ", impacts, ", support across callers lacking"))
     } else {
       if(length(nz_plot_list) == 1){
-
         print("Plot 'consensus' on single sample...")
-        somenone::plot_consensus_single(plot_list = nz_plot_list, raw_list = raw_list, tag = tag)
+        somenone::plot_consensus_single(plot_list = nz_plot_list, raw_list = raw_list, tag = taga)
       } else {
         print("Plot consensus...")
-        somenone::plot_consensus_list(nz_plot_list, raw_list, tag, included_order)
+        somenone::plot_consensus_list(plot_list = nz_plot_list, raw_list = raw_list, tag = taga, included_order = included_order)
       }
     }
   }

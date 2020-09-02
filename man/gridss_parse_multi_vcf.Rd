@@ -4,7 +4,7 @@
 \alias{gridss_parse_multi_vcf}
 \title{Parse multi-sample VCF (recommended output of GRIDSS)}
 \usage{
-gridss_parse_multi_vcf(vcf, which_genome = NULL)
+gridss_parse_multi_vcf(vcf, germline_id, which_genome = NULL)
 }
 \arguments{
 \item{vcf, }{the VCF file path}
