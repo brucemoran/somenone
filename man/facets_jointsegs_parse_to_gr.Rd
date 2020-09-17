@@ -7,8 +7,8 @@
 facets_jointsegs_parse_to_gr(
   jointsegs_in,
   which_genome,
-  cgc_gr = NULL,
   anno = NULL,
+  cgc_gr = NULL,
   bsgenome = NULL
 )
 }
@@ -18,9 +18,9 @@ facets_jointsegs_parse_to_gr(
 
 \item{which_genome}{the genome assembly used, "hg19" or "hg38"}
 
-\item{cgc_gr}{GRanges object of cancer gene census from COSMIC}
-
 \item{anno}{annotation strategy, "ENS" or "CGC"}
+
+\item{cgc_gr}{GRanges object of cancer gene census from COSMIC}
 
 \item{bsgenome}{which version of bsgenome to use}
 }

@@ -10,7 +10,7 @@
 #' @return vector of single-letter HGVS protein IDs
 #' @export
 
-variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "raw.vcf", tag = "somatic_n_of_1", included_order = NULL, name_callers = NULL) {
+variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "raw.vcf", tag = "somatic_n_of_1", included_order = NULL, name_callers = NULL, impacts = NULL) {
 
   options(stringAsFactors = FALSE)
 
@@ -76,29 +76,23 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
                     })}))
   if(all(any_vars > 0)){
 
+    ##define impacts from comma separated impacts input
+    if(! is.null(impacts)){
+      impact <- strsplit(impacts, ",")[[1]]
+    } else {
+      impact <- c("HIGH", "MODERATE", "MODIFIER", "LOW")
+    }
+    ##styring defining impacts
+    impact_str <- paste(unlist(lapply(impact, function(f){
+          strsplit(f,"")[[1]][1]
+        })), collapse = "")
+
     ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
     grsuper_plot_high <- somenone::gr_super_alt_plot(var_list,
                                            raw_list,
                                            two_callers,
-                                           impacts = c("HIGH"),
-                                           taga = paste0(tag, ".HIGH_impacts"),
-                                           included_order)
-
-
-    grsuper_plot_hm <- somenone::gr_super_alt_plot(var_list,
-                                           raw_list,
-                                           two_callers,
-                                           impacts = c("HIGH", "MODERATE"),
-                                           taga = paste0(tag, ".HM_impacts"),
-                                           included_order)
-
-    ##run to get all impacts, print but not plot
-    ##get GRanges superset per mutype
-    grsuper_plot_all <- somenone::gr_super_alt_plot(var_list,
-                                           raw_list,
-                                           two_callers,
-                                           impacts = c("HIGH", "MODERATE", "MODIFIER", "LOW"),
-                                           taga = paste0(tag, ".ALL_impacts"),
+                                           impacts = impact,
+                                           taga = paste0(tag, ".", impact_str, "_impacts"),
                                            included_order)
   } else {
     print("No variants found in one or more callers, please check and exclude")
@@ -389,7 +383,7 @@ at_least_two <- function (var_list, gr_super, tag){
       }
       if (!length(names(gr_plot)) == 0) {
           file_out <- paste0(samp, ".", tag, ".consensus.tsv")
-          vcf_out <- paste0(samp, ".", tag, ".pcgr.all.tsv.vcf")
+          vcf_out <- paste0(samp, ".", tag, ".pcgr.tsv.vcf")
           readr::write_tsv(as.data.frame(gr_plot), path = file_out)
           vcf_grp <- tibble::as_tibble(as.data.frame(gr_plot))
           vcf_grp <- dplyr::mutate(vcf_grp, r = names(gr_plot))

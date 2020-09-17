@@ -10,7 +10,8 @@ variant_consensus(
   raw_vcf_pattern = "raw.vcf",
   tag = "somatic_n_of_1",
   included_order = NULL,
-  name_callers = NULL
+  name_callers = NULL,
+  impacts = NULL
 )
 }
 \arguments{

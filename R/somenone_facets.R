@@ -20,6 +20,11 @@ facets_cna_call <- function(input_csv){
                            PURITY = round(fit$purity, digits=3))
   readr::write_tsv(ploidpurdf, path = paste0(tumour,".fit_ploidy_purity.tsv"))
   readr::write_tsv(round(fit$cncf, 3), path = paste0(tumour,".fit_cncf_jointsegs.tsv"))
+  pcgr_out <- tibble::tibble(Chromosome = fit$cncf$chrom,
+                             Start = as.integer(fit$cncf$start),
+                             End = as.integer(fit$cncf$end),
+                             Segment_Mean = fit$cncf$cnlr.median)
+  readr::write_tsv(pcgr_out, path = paste0(tumour,".cncf_jointsegs.pcgr.tsv"))
   grDevices::pdf(paste0(tumour, ".facets_CNA.pdf"))
     facets::plotSample(x = oo, emfit = fit, plot.type = "both", sname = tumour)
   grDevices::dev.off()
@@ -47,178 +52,46 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
     which_genome <- "hg38"
   }
 
-  ##load Cancer Gene Census bed file if supplied
-  cgc <- c()
-  cgc_gr <- GenomicRanges::GRanges()
+  ##load Cancer Gene Census bed file if supplied and run process
+  cgc_gr <- NULL
   if(! is.null(cgc_bed)){
     cgc <- utils::read.table(cgc_bed)
-    cgc_gr <-GenomicRanges::GRanges(seqnames = cgc[,1],
+    cgc_gr <- GenomicRanges::GRanges(seqnames = cgc[,1],
                                     ranges = IRanges::IRanges(cgc[,2], cgc[,3]),
-                                    CGC_gene = cgc[,4])
+                                    CGC_gene = unlist(lapply(as.vector(cgc[,4]), function(f){
+                                                        strsplit(f, ";")[[1]][1]
+                                                      })))
+    in_list <- as.list(dir(pattern = pattern))
+    out_list <- lapply(in_list, function(f){
+      process_in_list(f, which_genome, cgc_gr)
+    })
+    output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".CGC"))
   }
 
+  ##using ENS annotation otherwise/also
   ##set input list based on file pattern
   in_list <- as.list(dir(pattern = pattern))
   out_list <- lapply(in_list, function(f){
-    process_in_list(f, which_genome)
+    process_in_list(f, which_genome, cgc_gr = NULL)
   })
 
-  ##separate elements in list object into list objects
-  facets_list <- lapply(out_list, function(f){
-    ff <- f[[1]]
-    names(ff) <- ff$mcols.seg
-    return(ff)
-  })
-  pp_list <- lapply(out_list, function(f){
-    return(f[[2]])
-  })
-
-  samples <- names(pp_list) <- names(facets_list) <- unlist(lapply(in_list, function(f){
-    stringr::str_split(f,"\\.")[[1]][1]
-  }))
-
-  cna_list <- lapply(facets_list, function(f){
-    fo <- f[S4Vectors::mcols(f)$Total_Copy_Number != 2]
-    unique(c(fo))
-  })
-
-  ##make CNA df
-  cna_df <- c()
-  for(x in seq_along(samples)){
-    if(length(cna_list[[x]])>0){
-      cna_dfb <- as.data.frame(cna_list[[x]], row.names = seq(1:length(cna_list[[1]])))
-      cna_dfb$purity <- unlist(rep(pp_list[[x]][2], length(cna_dfb[,1])))
-      cna_dfb$ploidy <- unlist(rep(pp_list[[x]][1], length(cna_dfb[,1])))
-      cna_dfb$sampleID <- samples[x]
-      cna_df <- rbind(cna_df, cna_dfb)
-      readr::write_tsv(cna_df, path = paste0(samples[x],".facets.CNA.jointsegs.tab"))
-    } else {
-      readr::write_tsv(as.data.frame(cna_list[[x]]), path = paste0(samples[x], ".facets.CNA.jointsegs.tab"))
-    }
-  }
-
-  ##remove character chromosomes NB no MT, GL...
-  sqn <- gsub("chr", "", as.vector(cna_df[,1]))
-  sqn[sqn=="X"] <- 23
-  sqn[sqn=="Y"] <- 24
-  cna_df$seqnames <- sqn
-
-  seqlengths <- seqlengths_df(unique(cna_df[,1]), dict_file, which_genome)
-  cna_df <- cna_df[cna_df$seqnames %in% seqlengths$seqnames,]
-  cum_sum_add <- unlist(apply(cna_df, 1, function(x) {
-              cum_sum_off <- seqlengths$cum_sum_0[rownames(seqlengths) %in% x[1]]
-              return(cum_sum_off)
-  }))
-
-  ##findOverlaps of all samples in list, write overlaps out
-  if(length(facets_list) > 1){
-    cna_df_sample_intersect <- BiocGenerics::Reduce(GenomicRanges::intersect, facets_list)
-    cna_bounds <- as.data.frame(cna_df_sample_intersect)
-    cna_bounds <- cna_bounds[cna_bounds$seqnames %in% seqlengths$seqnames,]
-    cna_bounds_add <- unlist(apply(cna_bounds, 1, function(x) {
-                cum_sum_off <- seqlengths$cum_sum_0[rownames(seqlengths) %in% x[1]]
-                return(cum_sum_off)
-    }))
-    cna_bounds <- data.frame(row.names = seq(from = 1, to = dim(cna_bounds)[1], by = 1),
-                          seqnames = cna_bounds[,1],
-                          plot_start = cna_bounds[,2] + (cna_bounds_add - 1),
-                          plot_end = (cna_bounds[,3] - 1) + cna_bounds_add)
-  } else {
-    cna_df_sample_intersect <- facets_list
-    cna_bounds <- NULL
-  }
-  readr::write_tsv(as.data.frame(cna_df_sample_intersect),
-                   path = paste0(tag,".facets_consensus.CNA.tsv"))
-
-  ##plotting
-  plot_start <- plot_end <- cna_call <- minor_call <- purity <- ploidy <- diploid <- colour <- sample <- seqlength <- cum_sum_0 <- cum_sum_centro <- NULL
-
-  ##set maximum plotted CNA
-  cna_maxd <- cna_df$Total_Copy_Number
-  if(max(cna_maxd) > 8){
-    cna_maxd[cna_maxd > 8] <- 8
-  }
-
-  ##colours for plotting
-  colz <- c("blue", "darkblue", "black", "darkred", "firebrick3", "red2", rep("red",199))
-  names(colz) <- c(seq(from=0,to=198,by=1))
-  cnames <- sort(unique(cna_maxd))
-  colz <- colz[is.element(names(colz), cnames)]
-
-  ##plot data.frame
-  plot_df <- data.frame(row.names=seq(from = 1,to = dim(cna_df)[1], by = 1),
-                        seqnames = cna_df[,1],
-                        plot_start = cna_df[,2] + (cum_sum_add - 1),
-                        plot_end = (cna_df[,3] - 1) + cum_sum_add,
-                        cna_call = as.numeric(cna_maxd),
-                        minor_call = as.numeric(unlist(cna_df$Minor_Copy_Number)),
-                        purity = round(as.numeric(cna_df$purity)),
-                        ploidy = round(as.numeric(cna_df$ploidy)),
-                        diploid = 2,
-                        colour = plyr::mapvalues(cna_maxd, cnames, colz),
-                        sample = unlist(cna_df$sampleID))
-
-  ##plot
-  ggp <-  ggplot2::ggplot() +
-          ggplot2::geom_hline(data = plot_df,
-                ggplot2::aes(yintercept = ploidy),
-                    linetype = 1,
-                    color = "purple",
-                    size = 0.5) +
-          ggplot2::geom_hline(data = plot_df,
-                ggplot2::aes(yintercept = diploid),
-                    linetype = 1,
-                    color = "orange",
-                    size = 0.5) +
-          ggplot2::geom_vline(data = seqlengths,
-                     ggplot2::aes(xintercept = cum_sum_0),
-                     linetype = 1,
-                     color = "dodgerblue",
-                     size = 0.2) +
-          ggplot2::geom_vline(data = seqlengths,
-                     ggplot2::aes(xintercept = cum_sum_centro),
-                     linetype = 4,
-                     color = "grey",
-                     size = 0.2) +
-          ggplot2::geom_segment(data = plot_df,
-                    ggplot2::aes(x = plot_start,
-                     xend = plot_end,
-                     y = cna_call,
-                     yend = cna_call,
-                     colour = colour,
-                     size = 4.5)) +
-          ggplot2::scale_colour_identity() +
-          ggplot2::geom_segment(data = plot_df,
-                    ggplot2::aes(x = plot_start,
-                     xend = plot_end,
-                     y = minor_call,
-                     yend = minor_call,
-                     colour = "forestgreen",
-                     size = 2)) +
-          ggplot2::scale_x_continuous(name = "Chromosome",
-                     labels = as.vector(seqlengths$seqnames),
-                     breaks = seqlength$cum_sum_centro) +
-          ggplot2::scale_y_continuous(name = "Total CNA (facets tcn.em)",
-                     labels = seq(from = 0, to = max(cna_maxd), by = 1),
-                     breaks = seq(from = 0, to = max(cna_maxd), by = 1),
-                     limits = c(0, max(cna_maxd))) +
-          ggplot2::theme(axis.text.x = ggplot2::element_text(size = 5),
-                     panel.grid.major = ggplot2::element_blank(),
-                     panel.grid.minor = ggplot2::element_blank(),
-                     legend.position="none") +
-          ggplot2::facet_grid(sample ~ .)
-
-  ggplot2::ggsave(filename = paste0(tag, ".facets_consensus.plot.pdf"), plot = ggp)
+  output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".ENS"))
 }
 
 #' Processing list of Facets input
 #' @param in_list of data from Facets
 #' @param which_genome genoem assembly being used "hg19" or "hg38"
-#' @param cgc_bed bedfile of cancer gene census from COSMIC
+#' @param cgc_gr GRanges of cancer gene census from COSMIC
 #' @return purity-ploidy dataframe, also write rds used
 #' @export
 
-process_in_list <- function(in_list, which_genome, cgc_bed = NULL){
+process_in_list <- function(in_list, which_genome, cgc_gr){
+
+  ##allow CGC, else full Ensembl annotations
+  anno <- "ENS"
+  if(!is.null(cgc_gr)){
+    anno <- "CGC"
+  }
 
   ##iterate over samples
   for(samp in 1:length(in_list)){
@@ -236,7 +109,7 @@ process_in_list <- function(in_list, which_genome, cgc_bed = NULL){
 
     ##run function to make GRangesList
     ##(jointsegs_in, which_genome, cgc_gr = NULL, anno = NULL, bsgenome = NULL)
-    grl <- somenone::facets_jointsegs_parse_to_gr(sample, which_genome, anno= "ENS")
+    grl <- somenone::facets_jointsegs_parse_to_gr(sample, which_genome, anno = anno, cgc_gr = cgc_gr)
   }
   return(list(grl, pp_df))
 }
@@ -251,17 +124,18 @@ process_in_list <- function(in_list, which_genome, cgc_bed = NULL){
 #' @return a GRanges object with annotated jointsegs from input
 #' @export
 
-facets_jointsegs_parse_to_gr <- function(jointsegs_in, which_genome, cgc_gr = NULL, anno = NULL, bsgenome = NULL){
+facets_jointsegs_parse_to_gr <- function(jointsegs_in, which_genome, anno = NULL, cgc_gr = NULL, bsgenome = NULL){
 
   ##bed file from: https://cancer.sanger.ac.uk/census
-  ##NB requires login hence not provided
+  ##NB requires login hence not provided (but parameters exist to supply
+  ##credentials for download-references.nf)
   if(!is.null(cgc_gr)){
     CGCGR <- cgc_gr
   }
 
   ##annotation source
   if(is.null(anno)){
-    anno <- "NONE"
+    anno <- "ENS"
   }
 
   ##default genome version is hg38
@@ -344,6 +218,157 @@ facets_jointsegs_parse_to_gr <- function(jointsegs_in, which_genome, cgc_gr = NU
     names(S4Vectors::mcols(gr)) <- c(names(S4Vectors::mcols(gr))[1:9], "Total_Copy_Number", "Minor_Copy_Number")
   }
   return(gr)
+}
+
+
+#' Plotting and Output from 'out_list' object
+#' @param out_list resulting from process_in_list
+#' @param in_list input to process_in_list
+#' @param dict_file dictionary file of fasta used to align BAMs
+#' @param which_genome the genome assembly used, "hg19" or "hg38"
+#' @param tag runID and annotation strategy, "ENS" or "CGC"
+#' @return none writes output files
+#' @export
+
+output_out_list <- function(out_list, in_list, dict_file, which_genome, tag){
+
+  ##separate elements in list object into list objects
+  facets_list <- lapply(out_list, function(f){
+    ff <- f[[1]]
+    names(ff) <- ff$mcols.seg
+    return(ff)
+  })
+  pp_list <- lapply(out_list, function(f){
+    return(f[[2]])
+  })
+
+  samples <- names(pp_list) <- names(facets_list) <- unlist(lapply(in_list, function(f){
+    stringr::str_split(f,"\\.")[[1]][1]
+  }))
+
+  ##list of only those CNA (i.e. not TCN == 2)
+  cna_list <- lapply(facets_list, function(f){
+    fo <- f[S4Vectors::mcols(f)$Total_Copy_Number != 2]
+    unique(c(fo))
+  })
+
+  ##make bed, bedr:: and GRanges from that
+  ps_vec <- c("mcols.seg",
+              "mcols.cnlr.median",
+              "Total_Copy_Number",
+              "Minor_Copy_Number",
+              rev(colnames(S4Vectors::mcols(cna_list[[1]])))[2])
+
+  cna_master_gr <- master_intersect_grlist(cna_list, ps_vec)
+  readr::write_tsv(as.data.frame(cna_master_gr), path = paste0(tag, ".facets.CNA.master.tsv"))
+
+  ##make CNA df
+  cna_df <- c()
+  for(x in seq_along(samples)){
+    if(length(cna_list[[x]])>0){
+      cna_dfb <- as.data.frame(cna_list[[x]], row.names = seq(1:length(cna_list[[1]])))
+      cna_dfb$purity <- unlist(rep(pp_list[[x]][2], length(cna_dfb[,1])))
+      cna_dfb$ploidy <- unlist(rep(pp_list[[x]][1], length(cna_dfb[,1])))
+      cna_dfb$sampleID <- samples[x]
+      cna_df <- rbind(cna_df, cna_dfb)
+      readr::write_tsv(cna_df, path = paste0(samples[x],".facets.CNA.jointsegs.tsv"))
+    } else {
+      readr::write_tsv(as.data.frame(cna_list[[x]]), path = paste0(samples[x], ".facets.CNA.jointsegs.tsv"))
+    }
+  }
+
+  ##remove character chromosomes NB no MT, GL...
+  sqn <- gsub("chr", "", as.vector(cna_df[,1]))
+  sqn[sqn=="X"] <- 23
+  sqn[sqn=="Y"] <- 24
+  cna_df$seqnames <- sqn
+
+  seqlengths <- seqlengths_df(unique(cna_df[,1]), dict_file, which_genome)
+  cna_df <- cna_df[cna_df$seqnames %in% seqlengths$seqnames,]
+  cum_sum_add <- unlist(apply(cna_df, 1, function(x) {
+              cum_sum_off <- seqlengths$cum_sum_0[rownames(seqlengths) %in% x[1]]
+              return(cum_sum_off)
+  }))
+
+  ##plotting
+  plot_start <- plot_end <- cna_call <- minor_call <- purity <- ploidy <- diploid <- colour <- sample <- seqlength <- cum_sum_0 <- cum_sum_centro <- NULL
+
+  ##set maximum plotted CNA
+  cna_maxd <- cna_df$Total_Copy_Number
+  if(max(cna_maxd) > 8){
+    cna_maxd[cna_maxd > 8] <- 8
+  }
+
+  ##colours for plotting
+  colz <- c("blue", "darkblue", "black", "darkred", "firebrick3", "red2", rep("red",199))
+  names(colz) <- c(seq(from=0,to=198,by=1))
+  cnames <- sort(unique(cna_maxd))
+  colz <- colz[is.element(names(colz), cnames)]
+
+  ##plot data.frame
+  plot_df <- data.frame(row.names=seq(from = 1,to = dim(cna_df)[1], by = 1),
+                        seqnames = cna_df[,1],
+                        plot_start = cna_df[,2] + (cum_sum_add - 1),
+                        plot_end = (cna_df[,3] - 1) + cum_sum_add,
+                        cna_call = as.numeric(cna_maxd),
+                        minor_call = as.numeric(unlist(cna_df$Minor_Copy_Number)),
+                        purity = round(as.numeric(cna_df$purity)),
+                        ploidy = round(as.numeric(cna_df$ploidy)),
+                        diploid = 2,
+                        colour = plyr::mapvalues(cna_maxd, cnames, colz),
+                        sample = unlist(cna_df$sampleID))
+
+  ##plot
+  ggp <-  ggplot2::ggplot() +
+          ggplot2::geom_hline(data = plot_df,
+                ggplot2::aes(yintercept = ploidy),
+                    linetype = 1,
+                    color = "purple",
+                    size = 0.5) +
+          ggplot2::geom_hline(data = plot_df,
+                ggplot2::aes(yintercept = diploid),
+                    linetype = 1,
+                    color = "orange",
+                    size = 0.5) +
+          ggplot2::geom_vline(data = seqlengths,
+                     ggplot2::aes(xintercept = cum_sum_0),
+                     linetype = 1,
+                     color = "dodgerblue",
+                     size = 0.2) +
+          ggplot2::geom_vline(data = seqlengths,
+                     ggplot2::aes(xintercept = cum_sum_centro),
+                     linetype = 4,
+                     color = "grey",
+                     size = 0.2) +
+          ggplot2::geom_segment(data = plot_df,
+                    ggplot2::aes(x = plot_start,
+                     xend = plot_end,
+                     y = cna_call,
+                     yend = cna_call,
+                     colour = colour,
+                     size = 4.5)) +
+          ggplot2::scale_colour_identity() +
+          ggplot2::geom_segment(data = plot_df,
+                    ggplot2::aes(x = plot_start,
+                     xend = plot_end,
+                     y = minor_call,
+                     yend = minor_call,
+                     colour = "forestgreen",
+                     size = 2)) +
+          ggplot2::scale_x_continuous(name = "Chromosome",
+                     labels = as.vector(seqlengths$seqnames),
+                     breaks = seqlength$cum_sum_centro) +
+          ggplot2::scale_y_continuous(name = "Total CNA (facets tcn.em)",
+                     labels = seq(from = 0, to = max(cna_maxd), by = 1),
+                     breaks = seq(from = 0, to = max(cna_maxd), by = 1),
+                     limits = c(0, max(cna_maxd))) +
+          ggplot2::theme(axis.text.x = ggplot2::element_text(size = 5),
+                     panel.grid.major = ggplot2::element_blank(),
+                     panel.grid.minor = ggplot2::element_blank(),
+                     legend.position="none") +
+          ggplot2::facet_grid(sample ~ .)
+
+  ggplot2::ggsave(filename = paste0(tag, ".facets_consensus.plot.pdf"), plot = ggp)
 }
 
 #' Create lengths of chromosomes for plotting
@@ -495,4 +520,86 @@ plot_cna_df <- function(cna_df, cum_sum_add, seqlength, cna_max = 8){
                        legend.position="none") +
             ggplot2::facet_grid(sample ~ .)
     return(ggp)
+}
+
+#' Find intersect from list of CNA GRanges
+#' @param cna_list list of named GRanges objects
+#' @param ps_vec mcols columns to keep p(er) s(ample; appended with list element's name)
+#' @return GRanges object of all CNA, intersecting or not
+#'         includes the ranges and each mcol from ps_vec, annotated `ps_vec[x].sample`
+#' @export
+
+master_intersect_grlist <- function(gr_list, ps_vec){
+
+  ##check gr is A GRanges object
+  if(!as.vector(class(gr_list)) %in% c("GRangesList", "list")){
+    print("Input \'gr_list\' is not a GRangesList nor list object, retry")
+    break
+  }
+
+  ##use bedr::bedr.join.multiple.region to make a complete set and samples
+  ##lapply over gr_list which creates character vector list in "chrX:1-100" format
+  chr_list <- lapply(gr_list, function(f){
+      apply(as.data.frame(f), 1, function(ff){
+          ff <- unlist(ff)
+          paste0("chr", ff[1], ":", gsub(" ", "", ff[2]), "-", gsub(" ", "", ff[3]))
+        })
+    })
+  join_chr_all_df <- bedr::bedr.join.multiple.region(chr_list)
+
+  ##split back into GRanges
+  join_chr_all_gr <- do.call(c, apply(join_chr_all_df, 1, function(s){
+    ss <- stringr::str_split(s, "[:-]")
+    mcols_df <- data.frame(samples_n = ss[[2]][1],
+                           sampleID = ss[[3]][1])
+    ranges <- IRanges::IRanges(start = as.numeric(ss[[1]][2]),
+                               end = as.numeric(ss[[1]][3]))
+    GenomicRanges::GRanges(seqnames = gsub("chr", "", ss[[1]][1]),
+            ranges = ranges,
+            strand = NULL,
+            mcols = mcols_df,
+            seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
+  }))
+  colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
+
+  ##function to make master table mcols
+  master_mcols <- function(gr_list, gr_master, ps_vec){
+    lapply(seq_along(gr_list), function(ff){
+      ##first GRanges object
+      gr_ff <- gr_list[[ff]]
+
+      ##where gr_ff intersects with the supplied ranges
+      hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 2))
+
+      ##mcols of those hits
+      mchits <- S4Vectors::mcols(gr_ff[, ps_vec][hits$queryHits])
+
+      ##name based on list names and return
+      names(mchits) <- paste0(names(gr_list)[ff], ".", gsub("mcols.", "", names(mchits)))
+
+      ##create master output, same size as gr_master and with mcols from queryHits
+      ##in the place where subjectHits matched
+      master_df <- as.data.frame(matrix(nrow = length(gr_master),
+                                        ncol = length(names(mchits))))
+      colnames(master_df) <- names(mchits)
+
+      ##place mchits annotation as per subjectHits
+      for(x in 1:length(gr_master)){
+        sh <- hits$subjectHits
+        if(x %in% sh){
+          master_df[hits[sh %in% x, 2],] <- unlist(mchits[hits[sh %in% x, 1],])
+        } else {
+          next
+        }
+      }
+      return(master_df)
+    })
+  }
+
+  ##using the above as a master GRanges object, walk through per sample
+  ##create per sample df to be added to mcol
+  S4Vectors::mcols(join_chr_all_gr) <- c(S4Vectors::mcols(join_chr_all_gr), do.call(cbind, master_mcols(gr_list, join_chr_all_gr, ps_vec)))
+
+  ##return GRanges with mcols per sample
+  return(join_chr_all_gr)
 }

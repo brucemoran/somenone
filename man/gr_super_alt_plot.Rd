@@ -9,7 +9,7 @@ gr_super_alt_plot(
   raw_list,
   name_callers,
   impacts,
-  tag,
+  taga,
   included_order
 )
 }
@@ -22,9 +22,9 @@ gr_super_alt_plot(
 
 \item{impacts}{VEP impacts (one or combination of "HIGH", "MODERATE", "MODIFIER", "LOW")}
 
-\item{tag}{is a string used to tag output}
-
 \item{included_order}{oredering of samples for plotting}
+
+\item{tag}{is a string used to tag output}
 }
 \value{
 GRanges object of all  of single-letter HGVS protein IDs
