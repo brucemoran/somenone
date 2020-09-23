@@ -55,6 +55,7 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
   ##load Cancer Gene Census bed file if supplied and run process
   cgc_gr <- NULL
   if(! is.null(cgc_bed)){
+    print("Working on CGC")
     cgc <- utils::read.table(cgc_bed)
     cgc_gr <- GenomicRanges::GRanges(seqnames = cgc[,1],
                                     ranges = IRanges::IRanges(cgc[,2], cgc[,3]),
@@ -70,6 +71,7 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
 
   ##using ENS annotation otherwise/also
   ##set input list based on file pattern
+  print("Working on ENS")
   in_list <- as.list(dir(pattern = pattern))
   out_list <- lapply(in_list, function(f){
     process_in_list(f, which_genome, cgc_gr = NULL)
@@ -95,28 +97,29 @@ process_in_list <- function(in_list, which_genome, cgc_gr){
 
   ##iterate over samples
   for(samp in 1:length(in_list)){
-    sample <- in_list[[samp]]
-    in_name <- out_name <- stringr::str_split(sample,"\\.")[[1]][1]
-    out_ext <- gsub(".tsv", "", sample)
+    jointseg <- in_list[[samp]]
+    sampleID <- out_name <- stringr::str_split(jointseg, "\\.")[[1]][1]
+    out_ext <- gsub(".tsv", "", jointseg)
 
     ##also read and store ploidy:
-    ploidypurity <- dir(pattern = paste0(in_name, ".fit_ploidy_purity.tsv"))
+    ploidypurity <- dir(pattern = paste0(sampleID, ".fit_ploidy_purity.tsv"))
     ploidy <- as.vector(utils::read.table(ploidypurity)[2,1])
     purity <- as.vector(utils::read.table(ploidypurity)[2,2])
     pp_df <- data.frame(PLOIDY = ploidy, PURITY = purity)
 
-    print(paste0("Working on: ", in_name))
+    print(paste0("Working on: ", sampleID))
 
     ##run function to make GRangesList
     ##(jointsegs_in, which_genome, cgc_gr = NULL, anno = NULL, bsgenome = NULL)
-    grl <- somenone::facets_jointsegs_parse_to_gr(sample, which_genome, anno = anno, cgc_gr = cgc_gr)
+    grl <- somenone::facets_jointsegs_parse_to_gr(jointseg, sampleID, which_genome, anno = anno, cgc_gr = cgc_gr)
   }
   return(list(grl, pp_df))
 }
 
 #' Parse jointsegs into GRanges object
-#' @param jointsegs_in filename (output from Facets) with columns:
+#' @param jointseg filename (output from Facets) with columns:
 #'    "seg", "num.mark", "nhet", "cnlr.median", "mafR", "segclust", "cnlr.median.clust", "mafR.clust", "cf.em", "tcn.em", "lcn.em"
+#' @param sampleID the sample identifier, taken as the string before first dot in jointseg
 #' @param which_genome the genome assembly used, "hg19" or "hg38"
 #' @param cgc_gr GRanges object of cancer gene census from COSMIC
 #' @param anno annotation strategy, "ENS" or "CGC"
@@ -124,13 +127,14 @@ process_in_list <- function(in_list, which_genome, cgc_gr){
 #' @return a GRanges object with annotated jointsegs from input
 #' @export
 
-facets_jointsegs_parse_to_gr <- function(jointsegs_in, which_genome, anno = NULL, cgc_gr = NULL, bsgenome = NULL){
+facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno = NULL, cgc_gr = NULL, bsgenome = NULL){
 
   ##bed file from: https://cancer.sanger.ac.uk/census
   ##NB requires login hence not provided (but parameters exist to supply
-  ##credentials for download-references.nf)
+  ##credentials for download-references.nf in somatic_n-of-1 workflow)
   if(!is.null(cgc_gr)){
     CGCGR <- cgc_gr
+    anno <- "CGC"
   }
 
   ##annotation source
@@ -146,7 +150,7 @@ facets_jointsegs_parse_to_gr <- function(jointsegs_in, which_genome, anno = NULL
   }
 
   ##read input
-  js <- utils::read.table(jointsegs_in, header=T)
+  js <- utils::read.table(jointseg, header=T)
 
   ##convert chr23 -> X
   if("23" %in% js$chrom){
@@ -191,6 +195,8 @@ facets_jointsegs_parse_to_gr <- function(jointsegs_in, which_genome, anno = NULL
 
     ##rename S4Vectors::mcols
     names(S4Vectors::mcols(gr)) <- c(names(S4Vectors::mcols(gr))[1:9], "Total_Copy_Number", "Minor_Copy_Number", gene_symbols)
+    readr::write_tsv(as.data.frame(gr), path = paste0(sampleID, ".facets.CNA.ENS.tsv"))
+    saveRDS(gr, file = paste0(sampleID, ".facets.CNA.ENS.RData"))
   }
 
   if(anno == "CGC"){
@@ -211,12 +217,10 @@ facets_jointsegs_parse_to_gr <- function(jointsegs_in, which_genome, anno = NULL
 
     ##rename S4Vectors::mcols
     names(S4Vectors::mcols(gr)) <- c(names(S4Vectors::mcols(gr))[1:9], "Total_Copy_Number", "Minor_Copy_Number", "CGC_SYMBOL", "n_CGC_SYMBOLs")
+    readr::write_tsv(as.data.frame(gr), path = paste0(sampleID, ".facets.CNA.CGC.tsv"))
+    saveRDS(gr, file = paste0(sampleID, ".facets.CNA.CGC.RData"))
   }
 
-  if(anno == "NONE"){
-    ##rename S4Vectors::mcols
-    names(S4Vectors::mcols(gr)) <- c(names(S4Vectors::mcols(gr))[1:9], "Total_Copy_Number", "Minor_Copy_Number")
-  }
   return(gr)
 }
 
@@ -249,7 +253,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag){
   ##list of only those CNA (i.e. not TCN == 2)
   cna_list <- lapply(facets_list, function(f){
     fo <- f[S4Vectors::mcols(f)$Total_Copy_Number != 2]
-    unique(c(fo))
+    sort(unique(c(fo)))
   })
 
   ##make bed, bedr:: and GRanges from that
@@ -259,8 +263,10 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag){
               "Minor_Copy_Number",
               rev(colnames(S4Vectors::mcols(cna_list[[1]])))[2])
 
-  cna_master_gr <- master_intersect_grlist(cna_list, ps_vec)
-  readr::write_tsv(as.data.frame(cna_master_gr), path = paste0(tag, ".facets.CNA.master.tsv"))
+  cna_master_gr <- somenone::master_intersect_cna_grlist(cna_list, ps_vec)
+  cna_master_df <- as.data.frame(cna_master_gr)
+  cna_master_df$width <- cna_master_df$end - cna_master_df$start
+  readr::write_tsv(cna_master_df, path = paste0(tag, ".facets.CNA.master.tsv"))
 
   ##make CNA df
   cna_df <- c()
@@ -529,7 +535,7 @@ plot_cna_df <- function(cna_df, cum_sum_add, seqlength, cna_max = 8){
 #'         includes the ranges and each mcol from ps_vec, annotated `ps_vec[x].sample`
 #' @export
 
-master_intersect_grlist <- function(gr_list, ps_vec){
+master_intersect_cna_grlist <- function(gr_list, ps_vec){
 
   ##check gr is A GRanges object
   if(!as.vector(class(gr_list)) %in% c("GRangesList", "list")){
@@ -539,11 +545,13 @@ master_intersect_grlist <- function(gr_list, ps_vec){
 
   ##use bedr::bedr.join.multiple.region to make a complete set and samples
   ##lapply over gr_list which creates character vector list in "chrX:1-100" format
+  ##thinks it's 0-based so add 1...
   chr_list <- lapply(gr_list, function(f){
-      apply(as.data.frame(f), 1, function(ff){
+      fb <- apply(as.data.frame(f), 1, function(ff){
           ff <- unlist(ff)
           paste0("chr", ff[1], ":", gsub(" ", "", ff[2]), "-", gsub(" ", "", ff[3]))
         })
+      bedr::bedr.sort.region(fb)
     })
   join_chr_all_df <- bedr::bedr.join.multiple.region(chr_list)
 
@@ -560,6 +568,10 @@ master_intersect_grlist <- function(gr_list, ps_vec){
             mcols = mcols_df,
             seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
   }))
+
+  adr <- as.data.frame(join_chr_all_gr)
+  GenomicRanges::width(join_chr_all_gr) <- adr$end - adr$start
+
   colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
 
   ##function to make master table mcols

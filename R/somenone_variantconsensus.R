@@ -54,11 +54,13 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
                                       callers,
                                       out_ext = "snv_indel.pass.vep",
                                       raw_vcf_pattern)
-  raw_list <- somenone::rdata_gr_list(input_list[[2]],
-                                      germline_id,
-                                      callers,
-                                      out_ext = "raw",
-                                      raw_vcf_pattern)
+
+  #previously used raw VCFs to check for 'lost' calls, but have abandoned that method
+  # raw_list <- somenone::rdata_gr_list(input_list[[2]],
+  #                                     germline_id,
+  #                                     callers,
+  #                                     out_ext = "raw",
+  #                                     raw_vcf_pattern)
 
   ##callers used
   callers <- names(var_list)
@@ -406,265 +408,114 @@ at_least_two <- function (var_list, gr_super, tag){
   return(gr_plots)
 }
 
-#' Generate raw allele frequencies from list of GRanges
-#'
-#' @param raw_list is a nested list of raw calls [[caller]][[samples1..n]]
-#' @param comb_gr is GRanges object combined with all samples
-#' @return data.frame object of raw variant call allele frequencies
-#' @export
-
-raw_afs <- function(raw_list, comb_gr, samps = NULL){
-
-  ##if no samp input
-  if(is.null(samps)){
-    samps <- names(raw_list[[1]])
-  }
-
-  ##raw_samp is index of samples in raw_list elements
-  as.data.frame(lapply(seq_along(raw_list[[1]]), function(sampi){
-
-    ##set up a base of zeroes from the combined variants
-    afs <- data.frame(rep(as.numeric(0), length(comb_gr)))
-
-    ##test if samp is required
-    samp <- names(raw_list[[1]])[sampi]
-
-    ##per caller, test which variants are found in raw set across callers
-    lapply(seq_along(raw_list), function(calleri){
-
-      raw_caller <- raw_list[[calleri]]
-      if(!samp %in% samps){
-        colnames(afs) <- paste(names(raw_list)[calleri], samp, sep = ".")
-        return(afs)
-      } else {
-        fff <- raw_caller[[samp]]
-        # GenomeInfoDb::seqlevels(fff, pruning.mode="coarse") <- GenomeInfoDb::seqlevels(comb_gr)
-        ffs <- BiocGenerics::sort(fff)
-
-        ##test that some names are found, else return just zeroes
-        match_cgr_ffs <- unique(names(comb_gr) %in% names(ffs))
-        #print(names(comb_gr) %in% names(ffs))
-        if(length(match_cgr_ffs) > 1 | "TRUE" %in% match_cgr_ffs){
-          ffsi <- ffs[names(ffs) %in% names(comb_gr)]
-          afs[names(comb_gr) %in% names(ffs),] <- as.numeric(S4Vectors::mcols(ffsi)$AF)
-          colnames(afs) <- paste(names(raw_list)[calleri], samp, sep = ".")
-          return(afs)
-        } else {
-          colnames(afs) <- paste(names(raw_list)[calleri], samp, sep = ".")
-          return(afs)
-        }
-      }
-    })
-  }))
-}
-
 #' Create plot of shared variants among samples
 #'
-#' @param plot_list is a nested list of plot data [[caller]][[samples1..n]]
-#' @param raw_list is a nested list of raw calls [[caller]][[samples1..n]]
+#' @param master_gr is a named list of GRanges object [[samples1..n]]
 #' @param tag is a string to tag output files
-#' @param included_order oredering of samples for plotting
+#' @param included_order ordering of samples for plotting
+#' @param sample_map map included_order to new names, must be name vector where
+#'        names equate to included_order elements
+#' @param colours to use for colouring/shading, made into a rampPalette
+#' @param plot_label_pattern match this to print label of variant
+#'        (NB too vague and you will have a huge amount of labels which looks shit;
+#'        currently set to show 'patho'genic)
 #' @return none, plots PDF and writes out tsv files
 #' @export
 
-plot_consensus_list <- function(plot_list, raw_list, tag, included_order){
+plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, colours = NULL, plot_label_pattern = "patho"){
 
   row_sum <- sum_01 <- row_sum_01 <- NULL
 
-  print("Determining shared variants for plotting...")
-  ##remove hyphens from names
-  samps <- gsub("-","_", names(plot_list))
-  included_order <- gsub("-", "_", included_order)
-
-  ##combined set of all samples variants
-  comb_gr <- suppressWarnings(unique(do.call("c", unname(plot_list))))
-  GenomeInfoDb::seqlevels(comb_gr) <- sort(GenomeInfoDb::seqlevels(comb_gr))
-  comb_gr <- BiocGenerics::sort(comb_gr)
-  comb_df <- as.data.frame(comb_gr)
-
-  ##labels for plot
-  hgvsp <- unlist(lapply(comb_gr$HGVSp1,function(f){
-    strsplit(f,"\\.")[[1]][3]
-  }))
-  uniq_labels <- paste(names(comb_gr),
-                     comb_df$SYMBOL,
-                     comb_df$Consequence,
-                     hgvsp, sep=":")
-
-  ##take comb_gr positions, then query raw calls for them
-  ##allows 'rescue' of those falling out because of filters
-  ##use raw allele frequencies
-  plot_df_raw_afs <- raw_afs(raw_list, comb_gr)
-
-  ##rename based on callers.samp
-  colnames(plot_df_raw_afs) <- unlist(lapply(names(raw_list), function(f){
-    paste(f, samps, sep=".")
-  }))
-  ##take maximum AF from the two callers
-  plot_df_raw_max <- do.call(cbind, lapply(samps, function(ss){
-    apply(plot_df_raw_afs[, grep(ss, colnames(plot_df_raw_afs))], 1, max)
-  }))
-
-  plot_df_raw_max <- as.data.frame(plot_df_raw_max)
-  colnames(plot_df_raw_max) <- samps
-  rownames(plot_df_raw_max) <- uniq_labels
-
-  ##remove those with all 0 frequency
-  plot_df_raw_order <- plot_df_raw_max[rowSums(plot_df_raw_max)!=0,]
-
-  ##rowSums for arranging
-  ##gtz function to create '!= 0' -> 1, else 0
-  ##sum those to determine how many are shared (sum_01 > 1)
-  ##arrange by sum_01, then row_sum
-  gtz <- function(x) {
-    ifelse(x > 0, 1, 0)
+  ##colouring
+  if(is.null(colours)){
+    colours <- c("lightgrey", "dodgerblue", "blue")
   }
-  pdf_rawr <- tibble::as_tibble(plot_df_raw_order, rownames = "label")
-  pdf_rawm <- dplyr::mutate(pdf_rawr, row_sum = rowSums(pdf_rawr[-1]))
-  pdf_rawi <- dplyr::mutate_if(pdf_rawm, is.numeric, dplyr::funs("01" = gtz))
-  pdf_raws <- dplyr::select(pdf_rawi, -row_sum_01)
-  pdf_rawm <- dplyr::mutate(pdf_raws, sum_01 = rowSums(dplyr::select(pdf_raws, tidyselect::ends_with("_01"))))
-  pdf_rawd <- as.data.frame(pdf_rawm)
-  pdf_rawr <- dplyr::arrange(pdf_rawd, sum_01, row_sum)
-  plot_df_raw_order_ar <- dplyr::select(pdf_rawr, 1, samps, sum_01)
 
-  ##those shared between samples
-  plot_df_sh <- plot_df_raw_order_ar[, c("label", included_order, "sum_01")]
-  plot_df_sha <- dplyr::filter(plot_df_sh, sum_01 > 1)
-  plot_df_shar <- dplyr::select(plot_df_sha, -sum_01)
-  plot_df_shared <- tibble::column_to_rownames(plot_df_shar, "label")
-
-  ##write out those in plotDF
-  write_consensus_all(plot_list = plot_list,
-                      plot_df = plot_df_shared,
-                      tag = tag,
-                      included_order = included_order,
-                      cons = "shared")
-  write_consensus_all(plot_list = plot_list,
-                      plot_df = plot_df_raw_order,
-                      tag = tag,
-                      included_order = included_order,
-                      cons="all")
-
-  plot_vec <- plot_tag <- c()
-
-  if(dim(plot_df_shared)[1] == 0){
-    print("No shared variants found...")
+  if(length(master_gr) == 0){
+    print("No variants...")
   } else {
-    ##shared variants
-    plot_vec <- plot_df_shared
-    plot_tag <- "shared"
-    print(paste0("Plotting ", dim(plot_df_shared)[1], " shared variants..."))
-  }
 
-  if(! is.null(plot_vec) ){
-    if(dim(plot_vec)[1] != 0){
-      ##sort by included order
-      plot_labels <- rep("", dim(plot_vec)[1])
-      row_fontsize <- 1
-      colz <- grDevices::colorRampPalette(c("lightgrey", "dodgerblue", "blue"))
-      ##plotting and whether to use labels, size of labels
-      if(dim(plot_vec)[1] < 120){
-        row_fonttype = "bold"
-        if(dim(plot_vec)[1] < 20){row_fontsize = 12}
-        if(dim(plot_vec)[1] < 20){row_fontsize = 8}
-        if(dim(plot_vec)[1] < 50){row_fontsize = 6}
-        if(dim(plot_vec)[1] > 50 & dim(plot_vec)[1] < 100){row_fontsize = 4}
-        if(dim(plot_vec)[1] > 100){row_fontsize = 2}
-        plot_labels <- rownames(plot_vec)
-      }
+    ##save everything into a Rds to allow rerunning with other options
+    plot_consensus_list <- list(master_gr, tag, included_order, colours, plot_label_pattern)
+    names(plot_consensus_list) <- c("master_gr", "tag", "included_order", "colours", "plot_label_pattern")
 
-      grDevices::pdf(paste0(tag, ".", plot_tag, ".pdf"), onefile = F)
-      pheatmap::pheatmap(plot_vec[, c(1:length(included_order))],
-         breaks = seq(from = 0, to = 0.5, length.out = 101),
-         color = colz(100),
-         cluster_rows = FALSE,
-         cluster_cols = FALSE,
-         clustering_distance_rows = NA,
-         cellwidth = 12,
-         legend = TRUE,
-         fontsize_row = row_fontsize,
-         labels_row = plot_labels,
-         border_color = "lightgrey",
-         gaps_col = c(1:length(included_order))
-      )
-      grDevices::dev.off()
+    saveRDS(plot_consensus_list,
+            file = paste0(tag, ".plot_consensus.rds"))
+
+    ##remove hyphens from names
+    samps <- gsub("-","_", included_order)
+    included_order <- gsub("-", "_", included_order)
+
+    ##combined set of all samples variants
+    comb_gr <- master_gr
+    comb_df <- as.data.frame(comb_gr)
+
+    ##labels for plot
+    hgvsp <- unlist(lapply(comb_gr$HGVSp1,function(f){
+      strsplit(f,"\\.")[[1]][3]
+    }))
+    uniq_labels <- gsub(" : $", "", paste(comb_df$SYMBOL,
+                                          comb_df$Consequence,
+                                          hgvsp,
+                                          comb_df$CLIN_SIG,
+                                          sep=" : "))
+
+    ##set up plotting
+    if(!is.null(sample_map)){
+      ##change names
+      plot_af <- comb_df[, c("samples_n", paste0(included_order,".AF"))]
+      colnames(plot_af) <- c("samples_n", unlist(lapply(seq_along(sample_map), function(x){
+        gsub(names(sample_map)[x], sample_map[x], colnames(plot_af)[match(paste0(names(sample_map)[x], ".AF"), colnames(plot_af))])
+      })))
+    } else {
+      plot_af <- comb_df[,  c("samples_n", paste0(included_order,".AF"))]
     }
-  }
-}
+    colnames(plot_af) <- gsub(".AF", "", colnames(plot_af))
+    print(paste0("Plotting ", dim(plot_af)[1], " variants..."))
 
-#' Create two plots: all consensus, those in 2+ samples
-#'
-#' @importFrom rlang .data
-#' @param plot_list is a list of one named GRanges object
-#' @param raw_list is a nested list of raw calls [[caller]][[samples1..n]]
-#' @param tag is a string to tag output files
-#' @param included_order ordering of samples for plotting
-#' @return data.frame object of raw variant call allele frequencies
-#' @export
+    ##remove NAs (set to 0)
+    plot_af[is.na(plot_af)] <- 0
+    plot_af <- sapply(plot_af, as.numeric)
+    rownames(plot_af) <- uniq_labels
 
-plot_consensus_single <- function(plot_list, raw_list, tag, included_order){
+    ##order plot based on input set (shared or all)
+    if(length(grep("shared", tag)) == 1){
 
-  samp <- names(plot_list)[1]
+      plot_af <- plot_af[order(rowSums(plot_af), plot_af[,2]),-1]
 
-  ##combined set of all samples
-  comb_gr <- suppressWarnings(unique(plot_list[[1]]))
-  GenomeInfoDb::seqlevels(comb_gr) <- sort(GenomeInfoDb::seqlevels(comb_gr))
-  comb_gr <- BiocGenerics::sort(comb_gr)
-  comb_df <- as.data.frame(comb_gr)
+    } else {
 
-  ##labels for plot
-  hgvsp <- unlist(lapply(comb_gr$HGVSp1,function(f){
-    strsplit(f,"\\.")[[1]][3]
-  }))
-  uniq_labels <- paste(names(comb_gr),
-                       comb_df$SYMBOL,
-                       comb_df$Consequence,
-                       hgvsp, sep=":")
+      ##arrange on each colname
+      plot_adf <- as.data.frame(plot_af[,-1])
+      plot_af <- dplyr::arrange(.data = plot_adf, dplyr::across(colnames(plot_adf)))
 
-  ##take those positions, then query raw calls
-  ##allows 'rescue' of those falling out from arbitrary filters
-  ##enough support previously to allow re-entry
+    }
 
-  plot_df_raw_afs <- raw_afs(raw_list = raw_list, comb_gr = comb_gr, samps = samp)
-
-  ##rename based on callers.samp
-  colnames(plot_df_raw_afs) <- unlist(lapply(names(raw_list), function(f){
-    paste0(f, ".", names(raw_list[[1]]))
-  }))
-
-  ##remove the non-samp samps
-  plot_df_raw_afs <- plot_df_raw_afs[,grep(samp, colnames(plot_df_raw_afs))]
-
-  ##take maximum AF from the two callers
-  plot_df_raw_max <- do.call(cbind, lapply(samp, function(ss){
-    apply(plot_df_raw_afs[, grep(ss, colnames(plot_df_raw_afs))], 1, max)
-  }))
-  plot_df_raw_max <- as.data.frame(plot_df_raw_max)
-  colnames(plot_df_raw_max) <- samp
-  rownames(plot_df_raw_max) <- uniq_labels
-
-  ##ordering
-  plot_df_raw_ordered <- tibble::as_tibble(plot_df_raw_max, rownames = "label")
-  plot_df_raw_ordered <- base::as.data.frame(plot_df_raw_ordered)
-
-  if(dim(plot_df_raw_ordered)[1] != 0){
-    plot_vec <- data.frame(row.names = plot_df_raw_ordered[,1],
-                           tag = plot_df_raw_ordered[,2])
-    plot_tag <- "variants"
-    plot_labels <- rep("",times=dim(plot_vec)[1])
+    ##plot_setup
     row_fontsize <- 1
-    colz <- grDevices::colorRampPalette(c("lightgrey", "dodgerblue", "blue"))
-    if(dim(plot_vec)[1] < 120){
-      if(dim(plot_vec)[1] < 20){row_fontsize = 8}
-      if(dim(plot_vec)[1] < 50){row_fontsize = 6}
-      if(dim(plot_vec)[1] > 50 & dim(plot_vec)[1] < 100){row_fontsize = 4}
-      if(dim(plot_vec)[1] > 100){row_fontsize = 2}
-      plot_labels <- rownames(plot_vec)
+    colz <- grDevices::colorRampPalette(colours)
+    ##plotting and whether to use labels, size of labels
+    if(dim(plot_af)[1] < 120){
+      row_fonttype = "bold"
+      if(dim(plot_af)[1] < 20){row_fontsize = 12}
+      if(dim(plot_af)[1] < 20){row_fontsize = 8}
+      if(dim(plot_af)[1] < 50){row_fontsize = 6}
+      if(dim(plot_af)[1] > 50 & dim(plot_af)[1] < 100){row_fontsize = 4}
+      if(dim(plot_af)[1] > 100){row_fontsize = 2}
+      plot_labels <- rownames(plot_af)
+    } else {
+      ###only include rownames that are pathogenic
+      row_fonttype = "bold"
+      plot_labels <- grep(plot_label_pattern, rownames(plot_af), value = TRUE)
+      if(length(plot_labels)[1] < 20){row_fontsize = 12}
+      if(length(plot_labels)[1] < 20){row_fontsize = 8}
+      if(length(plot_labels)[1] < 50){row_fontsize = 6}
+      if(length(plot_labels)[1] > 50 & length(plot_labels)[1] < 100){row_fontsize = 4}
+      if(length(plot_labels)[1] > 100){row_fontsize = 2}
     }
 
-    grDevices::pdf(paste0(tag, ".", plot_tag, ".single.pdf"), onefile=F)
-    pheatmap::pheatmap(plot_vec,
+    grDevices::pdf(paste0(tag, ".pdf"), onefile = F)
+    pheatmap::pheatmap(plot_af,
        breaks = seq(from = 0, to = 0.5, length.out = 101),
        color = colz(100),
        cluster_rows = FALSE,
@@ -674,54 +525,132 @@ plot_consensus_single <- function(plot_list, raw_list, tag, included_order){
        legend = TRUE,
        fontsize_row = row_fontsize,
        labels_row = plot_labels,
-       labels_col = tag,
-       border_color = "lightgrey"
-    )
+       border_color = "lightgrey",
+       gaps_col = c(1:length(included_order)))
     grDevices::dev.off()
   }
 }
 
-#' Return overlapping variants for all samples
-#'
-#' @param plot_list list produced by at_least_two()
-#' @param plot_df data.frame of plotting information
-#' @param tag is a string used to tag output files
-#' @param included_order ordering of samples for plotting
-#' @param cons string to define consensus (shared or all)
-#' @return GRanges object of all  of single-letter HGVS protein IDs
+#' Find intersect from list of SNV GRanges
+#' @param gr_list list of named GRanges objects
+#' @param ps_vec mcols columns to keep p(er) s(ample; appended with list element's name)
+#' @param dp_vec mcols columns to d(edu)p(licate); appended as-is if all same; if varaitions, usual 'dot number' formatting applies)
+#' @param tag to apply to output file (master)
+#' @return list of GRanges object of shared intersecting, and all mutations with ps_vec, dp_vec columns, and original rownames (should be unique therefore)
 #' @export
 
-write_consensus_all <- function(plot_list, plot_df, tag, included_order, cons){
+master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
 
-  ##input names
-  samps <- gsub("-","_",names(plot_list))
+  ##check gr is A GRanges object
+  if(!as.vector(class(gr_list)) %in% c("GRangesList", "list")){
+    print("Input \'gr_list\' is not a GRangesList nor list object, retry")
+    break
+  }
 
-  ##split on colon, paste into label for plot_list
-  strSplitFun <- function(input, sepn){
-    lapply(input, function(f){
-      strsplit(f, sepn)[[1]]
+  ##use bedr::bedr.join.multiple.region to make a complete set and samples
+  ##lapply over gr_list which creates character vector list in "chrX:1-100" format
+  ##thinks it's 0-based so add 1...
+  chr_list <- lapply(gr_list, function(f){
+      bs <- apply(as.data.frame(f), 1, function(ff){
+          ff <- unlist(ff)
+          paste0("chr", ff[1], ":", as.numeric(gsub(" ", "", ff[2])), "-", as.numeric(gsub(" ", "", ff[3]))+1)
+        })
+        bedr::bedr.sort.region(bs)
+    })
+  join_chr_all_df <- bedr::bedr.join.multiple.region(chr_list)
+
+  ##split back into GRanges
+  print("Joining into single GRanges...")
+  join_chr_all_gr <- sort(do.call(c, apply(join_chr_all_df, 1, function(s){
+    ss <- stringr::str_split(s, "[:-]")
+    mcols_df <- data.frame(samples_n = ss[[2]][1],
+                           sampleID = ss[[3]][1])
+    GenomicRanges::GRanges(seqnames = gsub("chr", "", ss[[1]][1]),
+            ranges = IRanges::IRanges(c(ss[[1]][2])),
+            strand = NULL,
+            mcols = mcols_df,
+            seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
+  })))
+  colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
+
+  ##function to make master table mcols
+  master_mcols <- function(gr_list, gr_master, ps_vec, dp_vec){
+    lapply(seq_along(gr_list), function(ff){
+      ##first GRanges object
+      gr_ff <- gr_list[[ff]]
+
+      ##where gr_ff intersects with the supplied ranges
+      hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 1))
+
+      ##mcols of those hits
+      gr_ff_df <- S4Vectors::mcols(gr_ff[, c(ps_vec, dp_vec)])
+
+      ##name based on list names and return
+      names(gr_ff_df) <- c(paste0(names(gr_list)[ff], ".",
+                                  gsub("mcols.", "", names(gr_ff_df[,ps_vec]))),
+                           gsub("mcols.", "", names(gr_ff_df[,dp_vec])))
+
+      ##make names into a col also
+      gr_ff_df$rowname <- names(gr_ff)
+
+      ##create master output, same size as gr_master and with mcols from queryHits
+      ##in the place where subjectHits matched
+      master_df <- as.data.frame(matrix(nrow = length(gr_master),
+                                        ncol = length(names(gr_ff_df))))
+
+      colnames(master_df) <- names(gr_ff_df)
+
+      ##place mchits annotation as per subjectHits
+      for(x in 1:length(gr_master)){
+        ##subjectHits is where gr_master overlaps gr_ff
+        sh <- hits$subjectHits
+        if(x %in% sh){
+          ##master_df element base don subjectHits (2) replaced with gr_ff queryHits (1)
+          master_df[hits[sh %in% x, 2],] <- unlist(gr_ff_df[hits[sh %in% x, 1],])
+        } else {
+          next
+        }
+      }
+      return(master_df)
     })
   }
-  labels_out <- unlist(lapply(strSplitFun(rownames(plot_df), ":"), function(f){
-    paste0(f[1],":",f[2])
-  }))
 
-  ##parse required from plot_list
-  plot_out <- lapply(plot_list, function(f){
-    f[names(f) %in% labels_out]
-  })
+  ##using the above as a master GRanges object, walk through per sample
+  ##create per sample df to be added to mcol
+  print("Creating master GRanges...")
+  S4Vectors::mcols(join_chr_all_gr) <- c(S4Vectors::mcols(join_chr_all_gr), do.call(cbind, master_mcols(gr_list, join_chr_all_gr, ps_vec, dp_vec)))
 
-  ##test any output
-  out_gr <- suppressWarnings(unique(do.call("c", unname(plot_out))))
-  GenomeInfoDb::seqlevels(out_gr) <- sort(GenomeInfoDb::seqlevels(out_gr))
-  out_gr <- BiocGenerics::sort(out_gr)
-  out_df <- as.data.frame(out_gr)
+  ##need to collapse the duplicated columns into one
+  col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% c(dp_vec, "rowname")
+  col_kp <- !col_dp
 
-  if(dim(out_df)[1] != 0){
-    ##write output
-    file_out <- paste0(tag, ".", cons, ".tsv")
-    readr::write_tsv(out_df, path = file_out)
+  ##get unique set of values for dp
+  mcols_dpd <- as.data.frame(matrix(nrow = length(join_chr_all_gr),
+                                    ncol = 8))
+  colnames(mcols_dpd) <- colnames(as.data.frame(S4Vectors::mcols(join_chr_all_gr)))[col_dp][1:8]
+
+  print("Collapsing duplicate columns...")
+  for(x in 1:length(join_chr_all_gr)){
+    ##there are NA in nearly all lines, so remove and use remaining content
+    ##which is still ordered correctly
+    dp_u_vals <- unique(unlist(as.data.frame(S4Vectors::mcols(join_chr_all_gr))[x, col_dp]))
+    dp_u_val <- dp_u_vals[!is.na(dp_u_vals)]
+    if(length(dp_u_val)==8){
+      mcols_dpd[x,] <- dp_u_val
+    } else {
+      mcols_dpd[x,] <- c(dp_u_val[1:4], "", "", dp_u_val[5:6])
+    }
   }
+  S4Vectors::mcols(join_chr_all_gr) <- c(mcols_dpd, as.data.frame(S4Vectors::mcols(join_chr_all_gr)[col_kp]))
+  join_chr_kp_gr <- sort(join_chr_all_gr[join_chr_all_gr$samples_n > 1,])
+  names(join_chr_kp_gr) <- join_chr_kp_gr$rowname
+  adr <- as.data.frame(S4Vectors::mcols(join_chr_kp_gr))
+  S4Vectors::mcols(join_chr_kp_gr) <- adr[,!colnames(adr) %in% "rowname"]
+  readr::write_tsv(as.data.frame(S4Vectors::mcols(join_chr_kp_gr)),
+                   path = paste0(tag, ".master_consensus.tsv"))
+  readr::write_tsv(as.data.frame(S4Vectors::mcols(join_chr_all_gr)),
+                  path = paste0(tag, ".master_all.tsv"))
+  return(list(join_chr_kp_gr, join_chr_all_gr))
 }
 
 #' Create single-letter HGVS protein annotation (VEP outputs 3-letter)
@@ -776,17 +705,22 @@ gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, taga, i
   ##get list to plot from with at least two callers supporting
   plot_list <- somenone::at_least_two(var_list, gr_super, taga)
 
-
   ##if single sample plot_list is actually a GRanges object(!)
   if(!is.list(plot_list)){
 
-    somenone::plot_consensus_single(plot_list, raw_list, taga)
+    if(length(plot_list) == 0){
+      print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
+    } else {
+      print("Shared variants found, plotting...")
+        somenone::plot_consensus(master_gr = plot_list, tag = paste0(taga, ".solo"), included_order)
+    }
+
   } else {
 
     ##test for empty and rename to exclude those empty
     nz_plot_list <- lapply(seq_along(plot_list), function(f){
       if(length(plot_list[[f]]) != 0){
-        return(plot_list[[f]])
+        return(sort(plot_list[[f]]))
       }
     })
     nm_vec <- unlist(lapply(seq_along(plot_list), function(f){
@@ -798,17 +732,29 @@ gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, taga, i
     nz_plot_list[sapply(nz_plot_list, is.null)] <- NULL
     names(nz_plot_list) <- nm_vec
 
+    ##create a GRanges of shared elements from list
+    col_vec <- names(S4Vectors::mcols(nz_plot_list[[1]]))
+    ps_vec <- col_vec[1:3]
+    dp_vec <- col_vec[4:length(col_vec)]
+    master_gr_list <- master_intersect_snv_grlist(gr_list = nz_plot_list,
+                                              ps_vec = ps_vec,
+                                              dp_vec = dp_vec,
+                                              tag = taga)
+
     ##based on elements in nz_plot_list, plot or do not
-    if(length(nz_plot_list) == 0){
-      print(paste0("No variants for IMPACTS: ", impacts, ", support across callers lacking"))
+    ##shared
+    if(length(master_gr_list[[1]]) == 0){
+      print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
     } else {
-      if(length(nz_plot_list) == 1){
-        print("Plot 'consensus' on single sample...")
-        somenone::plot_consensus_single(plot_list = nz_plot_list, raw_list = raw_list, tag = taga)
-      } else {
-        print("Plot consensus...")
-        somenone::plot_consensus_list(plot_list = nz_plot_list, raw_list = raw_list, tag = taga, included_order = included_order)
-      }
+      print("Shared variants found, plotting...")
+        plot_consensus(master_gr = master_gr_list[[1]], tag = paste0(taga, ".shared"), included_order)
+    }
+    ##all
+    if(length(master_gr_list[[2]]) == 0){
+      print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
+    } else {
+      print("Shared variants found, plotting...")
+        plot_consensus(master_gr = master_gr_list[[2]], tag = paste0(taga, ".all"),  included_order)
     }
   }
   return(list(gr_super, plot_list))

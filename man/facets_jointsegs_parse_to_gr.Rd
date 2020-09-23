@@ -5,7 +5,8 @@
 \title{Parse jointsegs into GRanges object}
 \usage{
 facets_jointsegs_parse_to_gr(
-  jointsegs_in,
+  jointseg,
+  sampleID,
   which_genome,
   anno = NULL,
   cgc_gr = NULL,
@@ -13,8 +14,10 @@ facets_jointsegs_parse_to_gr(
 )
 }
 \arguments{
-\item{jointsegs_in}{filename (output from Facets) with columns:
+\item{jointseg}{filename (output from Facets) with columns:
 "seg", "num.mark", "nhet", "cnlr.median", "mafR", "segclust", "cnlr.median.clust", "mafR.clust", "cf.em", "tcn.em", "lcn.em"}
+
+\item{sampleID}{the sample identifier, taken as the string before first dot in jointseg}
 
 \item{which_genome}{the genome assembly used, "hg19" or "hg38"}
 
