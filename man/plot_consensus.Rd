@@ -14,6 +14,8 @@ plot_consensus(
 )
 }
 \arguments{
+\item{master_gr}{is a named list of GRanges object [[samples1..n]]}
+
 \item{tag}{is a string to tag output files}
 
 \item{included_order}{ordering of samples for plotting}
@@ -26,10 +28,6 @@ names equate to included_order elements}
 \item{plot_label_pattern}{match this to print label of variant
 (NB too vague and you will have a huge amount of labels which looks shit;
 currently set to show 'patho'genic)}
-
-\item{plot_list}{is a nested list of plot data [[caller]][[samples1..n]]}
-
-\item{raw_list}{is a nested list of raw calls [[caller]][[samples1..n]]}
 }
 \value{
 none, plots PDF and writes out tsv files
