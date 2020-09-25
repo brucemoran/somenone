@@ -557,30 +557,37 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
         })
         bedr::bedr.sort.region(bs)
     })
-  join_chr_all_df <- bedr::bedr.join.multiple.region(chr_list)
+  join_chr_all_tb <- tibble::as_tibble(bedr::bedr.join.multiple.region(chr_list))
 
   ##split back into GRanges
   print("Joining into single GRanges...")
-  join_chr_all_gr <- sort(do.call(c, apply(join_chr_all_df, 1, function(s){
-    ss <- stringr::str_split(s, "[:-]")
-    mcols_df <- data.frame(samples_n = ss[[2]][1],
-                           sampleID = ss[[3]][1])
-    GenomicRanges::GRanges(seqnames = gsub("chr", "", ss[[1]][1]),
-            ranges = IRanges::IRanges(c(ss[[1]][2])),
-            strand = NULL,
-            mcols = mcols_df,
-            seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
-  })))
+  join_chr_all_gr_tb <- tidyr::separate(data = join_chr_all_tb,
+                                        col =  index,
+                                        into = c("seqnames", "start", "end"),
+                                        sep = "[:-]")
+  join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
+                                      seqnames,
+                                      "ranges" = start,
+                                      "samples_n" = n.overlaps,
+                                      "sampleIDs" = names)
+  join_chr_all_gr <- GenomicRanges::GRanges(seqnames = gsub("chr", "", unlist(join_chr_all_gr_tb[,1])),
+                         ranges = IRanges::IRanges(unlist(join_chr_all_gr_tb[,2])),
+                         strand = NULL,
+                         mcols = join_chr_all_gr_tb[,c(3,4)],
+                         seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
+
   colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
+
+  ##sample names
+  samples <- unique(unlist(lapply(unique(join_chr_all_gr$sampleIDs), function(s){
+      stringr::str_split(s, ",")[[1]]
+    })))
 
   ##function to make master table mcols
   master_mcols <- function(gr_list, gr_master, ps_vec, dp_vec){
     lapply(seq_along(gr_list), function(ff){
       ##first GRanges object
       gr_ff <- gr_list[[ff]]
-
-      ##where gr_ff intersects with the supplied ranges
-      hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 1))
 
       ##mcols of those hits
       gr_ff_df <- S4Vectors::mcols(gr_ff[, c(ps_vec, dp_vec)])
@@ -595,23 +602,20 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
 
       ##create master output, same size as gr_master and with mcols from queryHits
       ##in the place where subjectHits matched
-      master_df <- as.data.frame(matrix(nrow = length(gr_master),
+      df_master <- as.data.frame(matrix(nrow = length(gr_master),
                                         ncol = length(names(gr_ff_df))))
 
-      colnames(master_df) <- names(gr_ff_df)
+      colnames(df_master) <- names(gr_ff_df)
 
-      ##place mchits annotation as per subjectHits
-      for(x in 1:length(gr_master)){
-        ##subjectHits is where gr_master overlaps gr_ff
-        sh <- hits$subjectHits
-        if(x %in% sh){
-          ##master_df element base don subjectHits (2) replaced with gr_ff queryHits (1)
-          master_df[hits[sh %in% x, 2],] <- unlist(gr_ff_df[hits[sh %in% x, 1],])
-        } else {
-          next
-        }
-      }
-      return(master_df)
+      ##where gr_ff intersects with the supplied ranges
+      hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 1))
+
+      ##place 'hits' annotation as per subjectHits
+      qh <- hits$queryHits
+
+      df_master[hits[qh, 2],] <- unlist(gr_ff_df[hits[qh, 1],])
+
+      return(df_master)
     })
   }
 
@@ -621,27 +625,46 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
   S4Vectors::mcols(join_chr_all_gr) <- c(S4Vectors::mcols(join_chr_all_gr), do.call(cbind, master_mcols(gr_list, join_chr_all_gr, ps_vec, dp_vec)))
 
   ##need to collapse the duplicated columns into one
-  col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% c(dp_vec, "rowname")
+  ##include a 'rowname' for unique naming
+  dp_vecr <- c(dp_vec, "rowname")
+  col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% dp_vecr
   col_kp <- !col_dp
 
   ##get unique set of values for dp
-  mcols_dpd <- as.data.frame(matrix(nrow = length(join_chr_all_gr),
-                                    ncol = 8))
-  colnames(mcols_dpd) <- colnames(as.data.frame(S4Vectors::mcols(join_chr_all_gr)))[col_dp][1:8]
 
-  print("Collapsing duplicate columns...")
-  for(x in 1:length(join_chr_all_gr)){
-    ##there are NA in nearly all lines, so remove and use remaining content
-    ##which is still ordered correctly
-    dp_u_vals <- unique(unlist(as.data.frame(S4Vectors::mcols(join_chr_all_gr))[x, col_dp]))
-    dp_u_val <- dp_u_vals[!is.na(dp_u_vals)]
-    if(length(dp_u_val)==8){
-      mcols_dpd[x,] <- dp_u_val
+  mcols_dpd <- as.data.frame(matrix(nrow = length(join_chr_all_gr),
+                                    ncol = length(dp_vecr)))
+  colnames(mcols_dpd) <- colnames(as.data.frame(S4Vectors::mcols(join_chr_all_gr)))[col_dp][1:(length(dp_vecr))]
+
+  ##set up tibble to allow checking of NAs, to condense dp_vec
+  dp_tb <- tibble::as_tibble(S4Vectors::mcols(join_chr_all_gr))[, col_dp]
+
+  ##unique colnames
+  col_uniq <- grep("\\.", colnames(dp_tb), invert = TRUE, value = TRUE)
+
+  ##check these for NA
+  dp_chk <- unlist(lapply(1:length(samples), function(s){
+    if(s == 1){
+      return(col_uniq[1])
     } else {
-      mcols_dpd[x,] <- c(dp_u_val[1:4], "", "", dp_u_val[5:6])
+      return(paste0(col_uniq[1], ".", s - 1))
     }
-  }
-  S4Vectors::mcols(join_chr_all_gr) <- c(mcols_dpd, as.data.frame(S4Vectors::mcols(join_chr_all_gr)[col_kp]))
+  }))
+
+  ##which of dp_chk are not NA (use first match for specifying mcols)
+  not_isna <- !is.na(dp_tb[, dp_chk])
+  dp_cd_tb <- dplyr::bind_rows(lapply(1:dim(dp_tb)[1], function(f){
+    ff <- dp_tb[f, ]
+    mtch_i <- match(dp_chk[match(TRUE, not_isna[f,])], colnames(dp_tb))
+    mtch_tb <- dp_tb[f, mtch_i:(mtch_i+length(dp_vecr)-1)]
+    colnames(mtch_tb) <- col_uniq
+    return(mtch_tb)
+  }))
+
+  ##set as mcols and rename
+  S4Vectors::mcols(join_chr_all_gr) <- c(as.data.frame(dp_cd_tb), as.data.frame(S4Vectors::mcols(join_chr_all_gr)[col_kp]))
+  names(join_chr_all_gr) <- join_chr_all_gr$rowname
+
   join_chr_kp_gr <- sort(join_chr_all_gr[join_chr_all_gr$samples_n > 1,])
   names(join_chr_kp_gr) <- join_chr_kp_gr$rowname
   adr <- as.data.frame(S4Vectors::mcols(join_chr_kp_gr))

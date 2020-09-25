@@ -64,7 +64,7 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
                                                       })))
     in_list <- as.list(dir(pattern = pattern))
     out_list <- lapply(in_list, function(f){
-      process_in_list(f, which_genome, cgc_gr)
+      somenone::process_in_list(f, which_genome, cgc_gr)
     })
     output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".CGC"))
   }
@@ -263,7 +263,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag){
               "Minor_Copy_Number",
               rev(colnames(S4Vectors::mcols(cna_list[[1]])))[2])
 
-  cna_master_gr <- somenone::master_intersect_cna_grlist(cna_list, ps_vec)
+  cna_master_gr <- master_intersect_cna_grlist(cna_list, ps_vec)
   cna_master_df <- as.data.frame(cna_master_gr)
   cna_master_df$width <- cna_master_df$end - cna_master_df$start
   readr::write_tsv(cna_master_df, path = paste0(tag, ".facets.CNA.master.tsv"))
@@ -553,26 +553,34 @@ master_intersect_cna_grlist <- function(gr_list, ps_vec){
         })
       bedr::bedr.sort.region(fb)
     })
-  join_chr_all_df <- bedr::bedr.join.multiple.region(chr_list)
+  join_chr_all_tb <- tibble::as_tibble(bedr::bedr.join.multiple.region(chr_list))
 
-  ##split back into GRanges
-  join_chr_all_gr <- do.call(c, apply(join_chr_all_df, 1, function(s){
-    ss <- stringr::str_split(s, "[:-]")
-    mcols_df <- data.frame(samples_n = ss[[2]][1],
-                           sampleID = ss[[3]][1])
-    ranges <- IRanges::IRanges(start = as.numeric(ss[[1]][2]),
-                               end = as.numeric(ss[[1]][3]))
-    GenomicRanges::GRanges(seqnames = gsub("chr", "", ss[[1]][1]),
-            ranges = ranges,
-            strand = NULL,
-            mcols = mcols_df,
-            seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
-  }))
+  print("Joining into single GRanges...")
+  join_chr_all_gr_tb <- tidyr::separate(data = join_chr_all_tb,
+                                        col =  index,
+                                        into = c("seqnames", "start", "end"),
+                                        sep = "[:-]")
+  join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
+                                      seqnames,
+                                      start, end,
+                                      "samples_n" = n.overlaps,
+                                      "sampleIDs" = names)
+  join_chr_all_gr <- GenomicRanges::GRanges(seqnames = gsub("chr", "", unlist(join_chr_all_gr_tb[,1])),
+                     ranges = IRanges::IRanges(start = as.numeric(unlist(join_chr_all_gr_tb[,2])),
+                                               end = as.numeric(unlist(join_chr_all_gr_tb[,3]))),
+                     strand = NULL,
+                     mcols = join_chr_all_gr_tb[,c("samples_n", "sampleIDs")],
+                     seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
 
   adr <- as.data.frame(join_chr_all_gr)
   GenomicRanges::width(join_chr_all_gr) <- adr$end - adr$start
 
   colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
+
+  ##sample names
+  samples <- unique(unlist(lapply(unique(join_chr_all_gr$sampleIDs), function(s){
+      stringr::str_split(s, ",")[[1]]
+    })))
 
   ##function to make master table mcols
   master_mcols <- function(gr_list, gr_master, ps_vec){
