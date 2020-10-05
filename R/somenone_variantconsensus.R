@@ -48,19 +48,12 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
                                 "\\.")[[1]][-c(1,2)],
                       collapse="."))
 
-  ##lists from both VEP annotated and raw VCFs
+  ##lists from VEP annotated
   var_list <- somenone::rdata_gr_list(input_list[[1]],
                                       germline_id,
                                       callers,
                                       out_ext = "snv_indel.pass.vep",
                                       raw_vcf_pattern)
-
-  #previously used raw VCFs to check for 'lost' calls, but have abandoned that method
-  # raw_list <- somenone::rdata_gr_list(input_list[[2]],
-  #                                     germline_id,
-  #                                     callers,
-  #                                     out_ext = "raw",
-  #                                     raw_vcf_pattern)
 
   ##callers used
   callers <- names(var_list)
@@ -84,20 +77,21 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
     } else {
       impact <- c("HIGH", "MODERATE", "MODIFIER", "LOW")
     }
-    ##styring defining impacts
+    ##string defining impacts
     impact_str <- paste(unlist(lapply(impact, function(f){
           strsplit(f,"")[[1]][1]
         })), collapse = "")
 
     ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
     grsuper_plot_high <- somenone::gr_super_alt_plot(var_list,
-                                           raw_list,
                                            two_callers,
                                            impacts = impact,
                                            taga = paste0(tag, ".", impact_str, "_impacts"),
                                            included_order)
   } else {
     print("No variants found in one or more callers, please check and exclude")
+    vcf_out <- paste0(names(var_list[[1]]), ".no_vars.impacts.pcgr.tsv.vcf")
+    readr::write_tsv(data.frame(), path = vcf_out)
   }
 }
 
@@ -329,7 +323,7 @@ gr_super_set <- function(var_list, name_callers, impacts){
       ##sets of call_1, 2 and the difference
       gr_11 <- calls_1[calls_1$IMPACT %in% impacts, names(S4Vectors::mcols(calls_1)) %in% mcols_want]
       gr_22 <- calls_2[calls_2$IMPACT %in% impacts, names(S4Vectors::mcols(calls_2)) %in% mcols_want]
-      gr_12 <- granges_sdin(gr_22, gr_11, "setdiff")
+      gr_12 <- somenone::granges_sdin(gr_22, gr_11, "setdiff")
 
       S4Vectors::mcols(gr_11) <- S4Vectors::mcols(gr_11)[, mcols_want]
       S4Vectors::mcols(gr_12) <- S4Vectors::mcols(gr_12)[, mcols_want]
@@ -384,28 +378,139 @@ at_least_two <- function (var_list, gr_super, tag){
           gr_plot <- granges_sdin(gr_super[[samp]], unique(up_l1[[1]]), "intersect")
       }
       if (!length(names(gr_plot)) == 0) {
-          file_out <- paste0(samp, ".", tag, ".consensus.tsv")
-          vcf_out <- paste0(samp, ".", tag, ".pcgr.tsv.vcf")
-          readr::write_tsv(as.data.frame(gr_plot), path = file_out)
-          vcf_grp <- tibble::as_tibble(as.data.frame(gr_plot))
-          vcf_grp <- dplyr::mutate(vcf_grp, r = names(gr_plot))
-          vcf_grps <- tidyr::separate(vcf_grp, r, c("#CHROM",
-              "POS", "REF", "ALT"), sep = "[:_\\/]")
-          vcf_grpr <- dplyr::rename(vcf_grps, AD1 = "AD.1")
-          vcf_grpm <- dplyr::mutate(vcf_grpr, POS = as.integer(POS),
-              ID = ".", QUAL = ".", INFO = ".", FILTER = "PASS",
-              FORMAT = "GT:DPC:DPT:ADC:ADT", ADSUM = as.numeric(AD) +
-                as.numeric(AD1), sampleID = paste0("0/1:.:",
-                ADSUM, ":.,.:", AD, ",", AD1))
-          vcf_grpms <- dplyr::select(vcf_grpm, "#CHROM", POS,
-              ID, REF, ALT, QUAL, FILTER, INFO, FORMAT, sampleID)
-          colnames(vcf_grpms)[colnames(vcf_grpms) == "sampleID"] <- samp
-          readr::write_tsv(as.data.frame(vcf_grpms), path = vcf_out)
+        file_out <- paste0(samp, ".", tag, ".consensus.tsv")
+        vcf_out <- paste0(samp, ".", tag, ".pcgr.tsv.vcf")
+        readr::write_tsv(as.data.frame(gr_plot), path = file_out)
+        vcf_grp <- tibble::as_tibble(as.data.frame(gr_plot))
+        vcf_grp <- dplyr::mutate(vcf_grp, r = names(gr_plot))
+        vcf_grps <- tidyr::separate(vcf_grp, r, c("#CHROM",
+            "POS", "REF", "ALT"), sep = "[:_\\/]")
+        vcf_grpr <- dplyr::rename(vcf_grps, AD1 = "AD.1")
+        vcf_grpm <- dplyr::mutate(vcf_grpr, POS = as.integer(POS),
+            ID = ".", QUAL = ".", INFO = ".", FILTER = "PASS",
+            FORMAT = "GT:DPC:DPT:ADC:ADT", ADSUM = as.numeric(AD) +
+              as.numeric(AD1), sampleID = paste0("0/1:.:",
+              ADSUM, ":.,.:", AD, ",", AD1))
+        vcf_grpms <- dplyr::select(vcf_grpm, "#CHROM", POS,
+            ID, REF, ALT, QUAL, FILTER, INFO, FORMAT, sampleID)
+        colnames(vcf_grpms)[colnames(vcf_grpms) == "sampleID"] <- samp
+        readr::write_tsv(as.data.frame(vcf_grpms), path = vcf_out)
+      } else {
+        vcf_out <- paste0(names(var_list[[1]]), ".no_vars.", tag, ".pcgr.tsv.vcf")
+        readr::write_tsv(data.frame(), path = vcf_out)
       }
       return(gr_plot)
   })
   names(gr_plots) <- samps
   return(gr_plots)
+}
+#' Create plot of shared variants among samples
+#'
+#' @param granges is a GRanges object
+#' @param tag is a string to tag output files
+#' @param sampleID name of sample
+#' @param sample_map map included_order to new names, must be name vector where
+#'        names equate to sampleID, vector element is name to change to
+#' @param colours to use for colouring/shading, made into a rampPalette
+#' @param plot_label_pattern match this to print label of variant
+#'        (NB too vague and you will have a huge amount of labels which looks shit;
+#'        currently set to show 'patho'genic)
+#' @return none, plots PDF and writes out tsv files
+#' @export
+
+plot_single <- function(granges, tag, sampleID, sample_map = NULL, colours = NULL, plot_label_pattern = "patho"){
+
+  row_sum <- sum_01 <- row_sum_01 <- NULL
+
+  ##colouring
+  if(is.null(colours)){
+    colours <- c("lightgrey", "dodgerblue", "blue")
+  }
+
+  if(length(granges) == 0){
+    print("No variants...")
+  } else {
+
+    ##save everything into a Rds to allow rerunning with other options
+    save(psl_granges, psl_tag, psl_sampleID, psl_sample_map, psl_colours, psl_plot_label_pattern,
+         file = paste0(tag, ".plot_single.rds"))
+
+    plot_single_list <- list(granges, tag, sampleID, sample_map, colours, plot_label_pattern, "plot_single(granges, tag, sampleID, sample_map, colours, plot_label_pattern)")
+    names(plot_single_list) <- c("master_gr", "tag", "included_order", "sample_map", "colours", "plot_label_pattern", "plot_single_call")
+    save(plot_single_list,
+         file = paste0(tag, ".plot_single.rds"))
+
+    ##remove hyphens from names
+    samps <- gsub("-","_", sampleID)
+
+    ##combined set of all samples variants
+    comb_df <- as.data.frame(granges)
+
+    ##labels for plot
+    hgvsp <- unlist(lapply(granges$HGVSp1,function(f){
+      strsplit(f,"\\.")[[1]][3]
+    }))
+    uniq_labels <- make.unique(gsub(" : NA", "",
+                              gsub(" : $", "", paste(comb_df$SYMBOL,
+                                                      comb_df$Consequence,
+                                                      hgvsp,
+                                                      comb_df$CLIN_SIG,
+                                                      sep=" : "))))
+
+    ##set up plotting
+    plot_af <- as.data.frame(comb_df[,"AF"])
+    if(!is.null(sample_map)){
+      sampleID <- sample_map[1]
+    }
+    colnames(plot_af) <- paste0(sampleID, ".AF")
+    rownames(plot_af) <- uniq_labels
+
+    ##arrange rows
+    plot_af <- dplyr::arrange(.data = plot_af, dplyr::across(colnames(plot_af)))
+    plot_adf <- dplyr::mutate(.data = plot_af, dplyr::across(where(is.character), as.numeric))
+    rownames(plot_adf) <- rownames(plot_af)
+    plot_af <- plot_adf
+
+    ##change names
+    print(paste0("Plotting ", dim(plot_af)[1], " variants..."))
+
+    ##plot_setup
+    row_fontsize <- 1
+    colz <- grDevices::colorRampPalette(colours)
+    ##plotting and whether to use labels, size of labels
+    if(dim(plot_af)[1] < 120){
+      row_fonttype = "bold"
+      if(dim(plot_af)[1] < 20){row_fontsize = 12}
+      if(dim(plot_af)[1] < 20){row_fontsize = 8}
+      if(dim(plot_af)[1] < 50){row_fontsize = 6}
+      if(dim(plot_af)[1] > 50 & dim(plot_af)[1] < 100){row_fontsize = 4}
+      if(dim(plot_af)[1] > 100){row_fontsize = 2}
+      plot_labels <- rownames(plot_af)
+    } else {
+      ###only include rownames that are pathogenic
+      row_fonttype = "bold"
+      plot_labels <- grep(plot_label_pattern, rownames(plot_af), value = TRUE)
+      if(length(plot_labels)[1] < 20){row_fontsize = 12}
+      if(length(plot_labels)[1] < 20){row_fontsize = 8}
+      if(length(plot_labels)[1] < 50){row_fontsize = 6}
+      if(length(plot_labels)[1] > 50 & length(plot_labels)[1] < 100){row_fontsize = 4}
+      if(length(plot_labels)[1] > 100){row_fontsize = 2}
+    }
+
+    grDevices::pdf(paste0(tag, ".pdf"), onefile = F)
+    pheatmap::pheatmap(plot_af,
+       breaks = seq(from = 0, to = 0.5, length.out = 101),
+       color = colz(100),
+       cluster_rows = FALSE,
+       cluster_cols = FALSE,
+       clustering_distance_rows = NA,
+       cellwidth = 12,
+       legend = TRUE,
+       fontsize_row = row_fontsize,
+       labels_row = plot_labels,
+       border_color = "lightgrey")
+    grDevices::dev.off()
+  }
 }
 
 #' Create plot of shared variants among samples
@@ -436,11 +541,10 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
   } else {
 
     ##save everything into a Rds to allow rerunning with other options
-    plot_consensus_list <- list(master_gr, tag, included_order, colours, plot_label_pattern)
-    names(plot_consensus_list) <- c("master_gr", "tag", "included_order", "colours", "plot_label_pattern")
-
-    saveRDS(plot_consensus_list,
-            file = paste0(tag, ".plot_consensus.rds"))
+    plot_consensus_list <- list(master_gr, tag, included_order, sample_map, colours, plot_label_pattern, "plot_consensus(master_gr, tag, included_order, sample_map, colours, plot_label_pattern)")
+    names(plot_consensus_list) <- c("master_gr", "tag", "included_order", "sample_map", "colours", "plot_label_pattern", "plot_consensus_call")
+    save(plot_consensus_list,
+         file = paste0(tag, ".plot_consensus.rds"))
 
     ##remove hyphens from names
     samps <- gsub("-","_", included_order)
@@ -454,12 +558,12 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
     hgvsp <- unlist(lapply(comb_gr$HGVSp1,function(f){
       strsplit(f,"\\.")[[1]][3]
     }))
-    uniq_labels <- gsub(" : $", "", paste(comb_df$SYMBOL,
-                                          comb_df$Consequence,
-                                          hgvsp,
-                                          comb_df$CLIN_SIG,
-                                          sep=" : "))
-
+    uniq_labels <- make.unique(gsub(" : NA", "",
+                              gsub(" : $", "", paste(comb_df$SYMBOL,
+                                                      comb_df$Consequence,
+                                                      hgvsp,
+                                                      comb_df$CLIN_SIG,
+                                                      sep=" : "))))
     ##set up plotting
     if(!is.null(sample_map)){
       ##change names
@@ -720,7 +824,7 @@ sub_hgvsp <- function(in_vec){
 #' @return GRanges object of all  of single-letter HGVS protein IDs
 #' @export
 
-gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, taga, included_order) {
+gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_order) {
 
   ##GRanges superset
   gr_super <- somenone::gr_super_set(var_list, name_callers, impacts)
@@ -728,14 +832,15 @@ gr_super_alt_plot <- function(var_list, raw_list, name_callers, impacts, taga, i
   ##get list to plot from with at least two callers supporting
   plot_list <- somenone::at_least_two(var_list, gr_super, taga)
 
-  ##if single sample plot_list is actually a GRanges object(!)
-  if(!is.list(plot_list)){
+  ##if single sample, make plot_list a GRanges object
+  if(length(plot_list) == 1){
 
-    if(length(plot_list) == 0){
-      print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
+    if(length(plot_list[[1]]) == 0){
+
+      print(paste0("No variants for IMPACTS: ", impacts))
     } else {
-      print("Shared variants found, plotting...")
-        somenone::plot_consensus(master_gr = plot_list, tag = paste0(taga, ".solo"), included_order)
+      print("Variants found, plotting...")
+        somenone::plot_single(granges = plot_list[[1]], sampleID = names(plot_list), tag = paste0(names(plot_list), ".", taga, ".solo"))
     }
 
   } else {

@@ -4,25 +4,18 @@
 \alias{gr_super_alt_plot}
 \title{Wrapper of main functions}
 \usage{
-gr_super_alt_plot(
-  var_list,
-  raw_list,
-  name_callers,
-  impacts,
-  taga,
-  included_order
-)
+gr_super_alt_plot(var_list, name_callers, impacts, taga, included_order)
 }
 \arguments{
 \item{var_list}{is a nested list of VEP annotated [[caller]][[samples1..n]]}
-
-\item{raw_list}{is a nested list of unfiltered calls [[caller]][[samples1..n]]}
 
 \item{name_callers}{two of the variant callers}
 
 \item{impacts}{VEP impacts (one or combination of "HIGH", "MODERATE", "MODIFIER", "LOW")}
 
 \item{included_order}{oredering of samples for plotting}
+
+\item{raw_list}{is a nested list of unfiltered calls [[caller]][[samples1..n]]}
 
 \item{tag}{is a string used to tag output}
 }
