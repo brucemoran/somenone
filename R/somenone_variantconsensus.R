@@ -677,7 +677,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
   if(length(grep("4.", sessionInfo()[1]$R.version$version.string))>0){
     seqinf <- GenomeInfoDb::getChromInfoFromUCSC("hg38")
   } else {
-    GenomeInfoDb::fetch_ChromInfo_from_UCSC("hg38")
+    seqinf <- GenomeInfoDb::fetchExtendedChromInfoFromUCSC("hg38")
   }
   seqinf[,1] <- gsub("chr","",seqinf[,1])
   seqinf_len <- as.numeric(seqinf[1:25,2])
