@@ -431,14 +431,11 @@ plot_single <- function(granges, tag, sampleID, sample_map = NULL, colours = NUL
     print("No variants...")
   } else {
 
-    ##save everything into a Rds to allow rerunning with other options
-    save(psl_granges, psl_tag, psl_sampleID, psl_sample_map, psl_colours, psl_plot_label_pattern,
-         file = paste0(tag, ".plot_single.rds"))
-
+    ##save everything into a RData to allow rerunning with other options
     plot_single_list <- list(granges, tag, sampleID, sample_map, colours, plot_label_pattern, "plot_single(granges, tag, sampleID, sample_map, colours, plot_label_pattern)")
     names(plot_single_list) <- c("master_gr", "tag", "included_order", "sample_map", "colours", "plot_label_pattern", "plot_single_call")
     save(plot_single_list,
-         file = paste0(tag, ".plot_single.rds"))
+         file = paste0(tag, ".plot_single.RData"))
 
     ##remove hyphens from names
     samps <- gsub("-","_", sampleID)
@@ -540,11 +537,11 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
     print("No variants...")
   } else {
 
-    ##save everything into a Rds to allow rerunning with other options
+    ##save everything into a RData to allow rerunning with other options
     plot_consensus_list <- list(master_gr, tag, included_order, sample_map, colours, plot_label_pattern, "plot_consensus(master_gr, tag, included_order, sample_map, colours, plot_label_pattern)")
     names(plot_consensus_list) <- c("master_gr", "tag", "included_order", "sample_map", "colours", "plot_label_pattern", "plot_consensus_call")
     save(plot_consensus_list,
-         file = paste0(tag, ".plot_consensus.rds"))
+         file = paste0(tag, ".plot_consensus.RData"))
 
     ##remove hyphens from names
     samps <- gsub("-","_", included_order)
@@ -674,11 +671,24 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
                                       "ranges" = start,
                                       "samples_n" = n.overlaps,
                                       "sampleIDs" = names)
-  join_chr_all_gr <- GenomicRanges::GRanges(seqnames = gsub("chr", "", unlist(join_chr_all_gr_tb[,1])),
-                         ranges = IRanges::IRanges(unlist(join_chr_all_gr_tb[,2])),
+  ##make seqinfo
+  ##"'seqinfo' must be NULL, or a Seqinfo object, or a character vector of
+  ## seqlevels, or a named numeric vector of sequence lengths"
+  if(length(grep("4.", sessionInfo()[1]$R.version$version.string))>0){
+    seqinf <- GenomeInfoDb::getChromInfoFromUCSC("hg38")
+  } else {
+    GenomeInfoDb::fetch_ChromInfo_from_UCSC("hg38")
+  }
+  seqinf[,1] <- gsub("chr","",seqinf[,1])
+  seqinf_len <- as.numeric(seqinf[1:25,2])
+
+  names(seqinf_len) <- seqinf[1:25,1]
+  join_chr_all_gr <- GenomicRanges::GRanges(seqnames = factor(gsub("chr", "", unlist(join_chr_all_gr_tb[,1]))),
+                         ranges = IRanges::IRanges(start = as.numeric(unlist(join_chr_all_gr_tb[,2])),
+                                                   end = as.numeric(unlist(join_chr_all_gr_tb[,2]))),
                          strand = NULL,
                          mcols = join_chr_all_gr_tb[,c(3,4)],
-                         seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
+                         seqinfo = seqinf_len)
 
   colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
 
@@ -732,10 +742,17 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
   ##include a 'rowname' for unique naming
   dp_vecr <- c(dp_vec, "rowname")
   col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% dp_vecr
+
+  ##possible that mcols isn't prefix, so test for that
+  if(length(table(col_dp))==1){
+    dp_vecr <- gsub("mcols.", "", dp_vecr)
+    col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% dp_vecr
+  }
+
+  ##take inverse to keep
   col_kp <- !col_dp
 
   ##get unique set of values for dp
-
   mcols_dpd <- as.data.frame(matrix(nrow = length(join_chr_all_gr),
                                     ncol = length(dp_vecr)))
   colnames(mcols_dpd) <- colnames(as.data.frame(S4Vectors::mcols(join_chr_all_gr)))[col_dp][1:(length(dp_vecr))]
