@@ -538,7 +538,7 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
   } else {
 
     ##save everything into a RData to allow rerunning with other options
-    plot_consensus_list <- list(master_gr, tag, included_order, sample_map, colours, plot_label_pattern, "plot_consensus(master_gr, tag, included_order, sample_map, colours, plot_label_pattern)")
+    plot_consensus_list <- list(master_gr, tag, included_order, sample_map, colours, plot_label_pattern, "somenone::plot_consensus(master_gr, tag, included_order, sample_map, colours, plot_label_pattern)")
     names(plot_consensus_list) <- c("master_gr", "tag", "included_order", "sample_map", "colours", "plot_label_pattern", "plot_consensus_call")
     save(plot_consensus_list,
          file = paste0(tag, ".plot_consensus.RData"))
@@ -712,8 +712,14 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
                            gsub("mcols.", "", names(gr_ff_df[,dp_vec])))
 
       ##make names into a col also
-      gr_ff_df$rowname <- names(gr_ff)
-
+      if(!is.null(names(gr_ff))){
+        gr_ff_df$rowname <- names(gr_ff)
+      } else {
+        gr_df <- as.data.frame(gr_ff)
+        gr_ff_df$rowname <- names(gr_ff) <- apply(gr_df, 1, function(p){
+          gsub(" ","",paste0(p[1], ":", p[2], "-", p[3]))
+        })
+      }
       ##create master output, same size as gr_master and with mcols from queryHits
       ##in the place where subjectHits matched
       df_master <- as.data.frame(matrix(nrow = length(gr_master),
@@ -740,12 +746,14 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
 
   ##need to collapse the duplicated columns into one
   ##include a 'rowname' for unique naming
-  dp_vecr <- c(dp_vec, "rowname")
-  col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% dp_vecr
 
-  ##possible that mcols isn't prefix, so test for that
+  ##is mocls prefix in mcols? remove unless also in dp_vec
+  col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% dp_vec
+  dp_vecr <- c(dp_vec, "rowname")
   if(length(table(col_dp))==1){
     dp_vecr <- gsub("mcols.", "", dp_vecr)
+    col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% dp_vecr
+  } else {
     col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% dp_vecr
   }
 
@@ -791,9 +799,9 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
   adr <- as.data.frame(S4Vectors::mcols(join_chr_kp_gr))
   S4Vectors::mcols(join_chr_kp_gr) <- adr[,!colnames(adr) %in% "rowname"]
   readr::write_tsv(as.data.frame(S4Vectors::mcols(join_chr_kp_gr)),
-                   path = paste0(tag, ".master_consensus.tsv"))
+                   file = paste0(tag, ".master_consensus.tsv"))
   readr::write_tsv(as.data.frame(S4Vectors::mcols(join_chr_all_gr)),
-                  path = paste0(tag, ".master_all.tsv"))
+                  file = paste0(tag, ".master_all.tsv"))
   return(list(join_chr_kp_gr, join_chr_all_gr))
 }
 
@@ -881,7 +889,7 @@ gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_or
     col_vec <- names(S4Vectors::mcols(nz_plot_list[[1]]))
     ps_vec <- col_vec[1:3]
     dp_vec <- col_vec[4:length(col_vec)]
-    master_gr_list <- master_intersect_snv_grlist(gr_list = nz_plot_list,
+    master_gr_list <- somenone::master_intersect_snv_grlist(gr_list = nz_plot_list,
                                               ps_vec = ps_vec,
                                               dp_vec = dp_vec,
                                               tag = taga)
