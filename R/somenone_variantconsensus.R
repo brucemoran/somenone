@@ -4,13 +4,14 @@
 #' @param germline_id ID for germline_id sample
 #' @param vep_vcf_pattern pattern to match VEP annotated VCFs
 #' @param raw_vcf_pattern pattern to match raw unannotated, unfiltered VCFs unfiltered
+#' @param which_genome hg19 or hg38
 #' @param included_order oredering of samples for plotting
 #' @param name_callers named variant callers to use primary to random selection
 #' @param tag is a string to tag output files
 #' @return vector of single-letter HGVS protein IDs
 #' @export
 
-variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "raw.vcf", tag = "somatic_n_of_1", included_order = NULL, name_callers = NULL, impacts = NULL) {
+variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "raw.vcf", tag = "somatic_n_of_1", which_genome, included_order = NULL, name_callers = NULL, impacts = NULL) {
 
   options(stringAsFactors = FALSE)
 
@@ -35,6 +36,19 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
       included_order <- unique(unlist(lapply(vcf_list, function(f){
                           stringr::str_split(f, "\\.")[[1]][1]
                         })))
+  }
+
+  ##which_genome
+  if(! which_genome %in% c("hg19", "hg38")){
+    if(length(grep("37", which_genome))==1){
+      which_genome <- "hg19"
+    } else {
+      if(length(grep("19", which_genome))==1){
+        which_genome <- "hg19"
+      } else {
+        which_genome <- "hg38"
+      }
+    }
   }
 
   ##operate over vep, raw VCFs
@@ -87,7 +101,8 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
                                            two_callers,
                                            impacts = impact,
                                            taga = paste0(tag, ".", impact_str, "_impacts"),
-                                           included_order)
+                                           included_order,
+                                           which_genome)
   } else {
     print("No variants found in one or more callers, please check and exclude")
     vcf_out <- paste0(names(var_list[[1]]), ".no_vars.impacts.pcgr.tsv.vcf")
@@ -517,7 +532,7 @@ plot_single <- function(granges, tag, sampleID, sample_map = NULL, colours = NUL
 #' @param included_order ordering of samples for plotting
 #' @param sample_map map included_order to new names, must be name vector where
 #'        names equate to included_order elements
-#' @param colours to use for colouring/shading, made into a rampPalette
+#' @param colours to use for colouring/shading, made into a rampPalette, order according to low to high allele frequency
 #' @param plot_label_pattern match this to print label of variant
 #'        (NB too vague and you will have a huge amount of labels which looks shit;
 #'        currently set to show 'patho'genic)
@@ -637,10 +652,11 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
 #' @param ps_vec mcols columns to keep p(er) s(ample; appended with list element's name)
 #' @param dp_vec mcols columns to d(edu)p(licate); appended as-is if all same; if varaitions, usual 'dot number' formatting applies)
 #' @param tag to apply to output file (master)
+#' @param which_genome hg19 or hg38
 #' @return list of GRanges object of shared intersecting, and all mutations with ps_vec, dp_vec columns, and original rownames (should be unique therefore)
 #' @export
 
-master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
+master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_genome){
 
   ##check gr is A GRanges object
   if(!as.vector(class(gr_list)) %in% c("GRangesList", "list")){
@@ -652,7 +668,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
   ##lapply over gr_list which creates character vector list in "chrX:1-100" format
   ##thinks it's 0-based so add 1...
   chr_list <- lapply(gr_list, function(f){
-      bs <- apply(as.data.frame(f), 1, function(ff){
+      bs <- apply(as.data.frame(unique(f)), 1, function(ff){
           ff <- unlist(ff)
           paste0("chr", ff[1], ":", as.numeric(gsub(" ", "", ff[2])), "-", as.numeric(gsub(" ", "", ff[3]))+1)
         })
@@ -675,20 +691,22 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
   ##"'seqinfo' must be NULL, or a Seqinfo object, or a character vector of
   ## seqlevels, or a named numeric vector of sequence lengths"
   if(length(grep("4.", sessionInfo()[1]$R.version$version.string))>0){
-    seqinf <- GenomeInfoDb::getChromInfoFromUCSC("hg38")
+    seqinf <- GenomeInfoDb::getChromInfoFromUCSC(which_genome)
   } else {
-    seqinf <- GenomeInfoDb::fetchExtendedChromInfoFromUCSC("hg38")
+    seqinf <- GenomeInfoDb::fetchExtendedChromInfoFromUCSC(which_genome)
   }
   seqinf[,1] <- gsub("chr","",seqinf[,1])
-  seqinf_len <- as.numeric(seqinf[1:25,2])
+  seqinf <- seqinf[grep("_", seqinf[,1], invert = TRUE),c(1,2)]
+  seqinf <- Seqinfo(seqnames = seqinf[,1],
+                    seqlengths = seqinf[,2],
+                    genome = which_genome)
 
-  names(seqinf_len) <- seqinf[1:25,1]
   join_chr_all_gr <- GenomicRanges::GRanges(seqnames = factor(gsub("chr", "", unlist(join_chr_all_gr_tb[,1]))),
                          ranges = IRanges::IRanges(start = as.numeric(unlist(join_chr_all_gr_tb[,2])),
                                                    end = as.numeric(unlist(join_chr_all_gr_tb[,2]))),
                          strand = NULL,
                          mcols = join_chr_all_gr_tb[,c(3,4)],
-                         seqinfo = seqinf_len)
+                         seqinfo = seqinf)
 
   colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
 
@@ -698,10 +716,11 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
     })))
 
   ##function to make master table mcols
-  master_mcols <- function(gr_list, gr_master, ps_vec, dp_vec){
+  master_mcols <- function(gr_list, gr_master, ps_vec, dp_vec, seqinf){
     lapply(seq_along(gr_list), function(ff){
       ##first GRanges object
-      gr_ff <- gr_list[[ff]]
+      gr_ff <- unique(gr_list[[ff]])
+      GenomeInfoDb::seqinfo(gr_ff) <- seqinf
 
       ##mcols of those hits
       gr_ff_df <- S4Vectors::mcols(gr_ff[, c(ps_vec, dp_vec)])
@@ -742,7 +761,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
   ##using the above as a master GRanges object, walk through per sample
   ##create per sample df to be added to mcol
   print("Creating master GRanges...")
-  S4Vectors::mcols(join_chr_all_gr) <- c(S4Vectors::mcols(join_chr_all_gr), do.call(cbind, master_mcols(gr_list, join_chr_all_gr, ps_vec, dp_vec)))
+  S4Vectors::mcols(join_chr_all_gr) <- c(S4Vectors::mcols(join_chr_all_gr), do.call(cbind, master_mcols(gr_list, join_chr_all_gr, ps_vec, dp_vec, seqinf)))
 
   ##need to collapse the duplicated columns into one
   ##include a 'rowname' for unique naming
@@ -791,18 +810,21 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag){
   }))
 
   ##set as mcols and rename
+  dp_cd_tb <- dplyr::select(.data = dp_cd_tb, rowname, dplyr::everything())
+
   S4Vectors::mcols(join_chr_all_gr) <- c(as.data.frame(dp_cd_tb), as.data.frame(S4Vectors::mcols(join_chr_all_gr)[col_kp]))
   names(join_chr_all_gr) <- join_chr_all_gr$rowname
 
+  ##write output
   join_chr_kp_gr <- sort(join_chr_all_gr[join_chr_all_gr$samples_n > 1,])
   names(join_chr_kp_gr) <- join_chr_kp_gr$rowname
   adr <- as.data.frame(S4Vectors::mcols(join_chr_kp_gr))
-  S4Vectors::mcols(join_chr_kp_gr) <- adr[,!colnames(adr) %in% "rowname"]
-  readr::write_tsv(as.data.frame(S4Vectors::mcols(join_chr_kp_gr)),
-                   file = paste0(tag, ".master_consensus.tsv"))
+  readr::write_tsv(adr, path = paste0(tag, ".master_consensus.tsv"))
   readr::write_tsv(as.data.frame(S4Vectors::mcols(join_chr_all_gr)),
-                  file = paste0(tag, ".master_all.tsv"))
-  return(list(join_chr_kp_gr, join_chr_all_gr))
+                  path = paste0(tag, ".master_all.tsv"))
+  gr_master_consensus_all <- list(join_chr_kp_gr, join_chr_all_gr)
+  save(gr_master_consensus_all, file = paste0(tag, ".master_consensus_all.RData"))
+  return(gr_master_consensus_all)
 }
 
 #' Create single-letter HGVS protein annotation (VEP outputs 3-letter)
@@ -846,10 +868,11 @@ sub_hgvsp <- function(in_vec){
 #' @param name_callers two of the variant callers
 #' @param tag is a string used to tag output
 #' @param included_order oredering of samples for plotting
+#' @param which_genome hg19 or hg38
 #' @return GRanges object of all  of single-letter HGVS protein IDs
 #' @export
 
-gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_order) {
+gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_order, which_genome) {
 
   ##GRanges superset
   gr_super <- somenone::gr_super_set(var_list, name_callers, impacts)
@@ -889,10 +912,11 @@ gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_or
     col_vec <- names(S4Vectors::mcols(nz_plot_list[[1]]))
     ps_vec <- col_vec[1:3]
     dp_vec <- col_vec[4:length(col_vec)]
-    master_gr_list <- somenone::master_intersect_snv_grlist(gr_list = nz_plot_list,
+    master_gr_list <- master_intersect_snv_grlist(gr_list = nz_plot_list,
                                               ps_vec = ps_vec,
                                               dp_vec = dp_vec,
-                                              tag = taga)
+                                              tag = taga,
+                                              which_genome)
 
     ##based on elements in nz_plot_list, plot or do not
     ##shared

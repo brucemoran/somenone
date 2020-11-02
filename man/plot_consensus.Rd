@@ -23,7 +23,7 @@ plot_consensus(
 \item{sample_map}{map included_order to new names, must be name vector where
 names equate to included_order elements}
 
-\item{colours}{to use for colouring/shading, made into a rampPalette}
+\item{colours}{to use for colouring/shading, made into a rampPalette, order according to low to high allele frequency}
 
 \item{plot_label_pattern}{match this to print label of variant
 (NB too vague and you will have a huge amount of labels which looks shit;

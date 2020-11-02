@@ -4,7 +4,14 @@
 \alias{gr_super_alt_plot}
 \title{Wrapper of main functions}
 \usage{
-gr_super_alt_plot(var_list, name_callers, impacts, taga, included_order)
+gr_super_alt_plot(
+  var_list,
+  name_callers,
+  impacts,
+  taga,
+  included_order,
+  which_genome
+)
 }
 \arguments{
 \item{var_list}{is a nested list of VEP annotated [[caller]][[samples1..n]]}
@@ -14,6 +21,8 @@ gr_super_alt_plot(var_list, name_callers, impacts, taga, included_order)
 \item{impacts}{VEP impacts (one or combination of "HIGH", "MODERATE", "MODIFIER", "LOW")}
 
 \item{included_order}{oredering of samples for plotting}
+
+\item{which_genome}{hg19 or hg38}
 
 \item{raw_list}{is a nested list of unfiltered calls [[caller]][[samples1..n]]}
 

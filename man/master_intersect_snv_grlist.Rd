@@ -4,7 +4,7 @@
 \alias{master_intersect_snv_grlist}
 \title{Find intersect from list of SNV GRanges}
 \usage{
-master_intersect_snv_grlist(gr_list, ps_vec, dp_vec, tag)
+master_intersect_snv_grlist(gr_list, ps_vec, dp_vec, tag, which_genome)
 }
 \arguments{
 \item{gr_list}{list of named GRanges objects}
@@ -14,6 +14,8 @@ master_intersect_snv_grlist(gr_list, ps_vec, dp_vec, tag)
 \item{dp_vec}{mcols columns to d(edu)p(licate); appended as-is if all same; if varaitions, usual 'dot number' formatting applies)}
 
 \item{tag}{to apply to output file (master)}
+
+\item{which_genome}{hg19 or hg38}
 }
 \value{
 list of GRanges object of shared intersecting, and all mutations with ps_vec, dp_vec columns, and original rownames (should be unique therefore)

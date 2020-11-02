@@ -15,6 +15,7 @@ facets_cna_call <- function(input_csv){
   snpmat <- facets::readSnpMatrix(input_csv)
   pps <- facets::preProcSample(snpmat)
   oo <- facets::procSample(pps)
+  diplogr <- oo$dipLogR
   fit <- facets::emcncf(oo)
   ploidpurdf <- data.frame(PLOIDY = round(fit$ploidy, digits=3),
                            PURITY = round(fit$purity, digits=3))

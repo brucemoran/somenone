@@ -9,6 +9,7 @@ variant_consensus(
   vep_vcf_pattern,
   raw_vcf_pattern = "raw.vcf",
   tag = "somatic_n_of_1",
+  which_genome,
   included_order = NULL,
   name_callers = NULL,
   impacts = NULL
@@ -22,6 +23,8 @@ variant_consensus(
 \item{raw_vcf_pattern}{pattern to match raw unannotated, unfiltered VCFs unfiltered}
 
 \item{tag}{is a string to tag output files}
+
+\item{which_genome}{hg19 or hg38}
 
 \item{included_order}{oredering of samples for plotting}
 
