@@ -75,7 +75,7 @@ gridss_parse_multi_vcf <- function(vcf, germline_id, which_genome = NULL){
     ##get sample-specific bpgr object
 #    bpgr[VariantAnnotation::geno(rvcf[bpgr$sourceId])$QUAL[, samp] >= 2]
     ##older version has vcfId vs. sourceId
-    bpgr[VariantAnnotation::geno(rvcf[bpgr$vcfId])$QUAL[, samp] >= 2]
+    bpgr[VariantAnnotation::geno(rvcf[names(bpgr)])$QUAL[, samp] >= 2]
 
   })
 
@@ -232,7 +232,7 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
   } else {
 
     ##write output table
-    readr::write_tsv(input_df, path = paste0(output_path, ".tsv"))
+    readr::write_tsv(input_df, file = paste0(output_path, ".tsv"))
 
     ##impose condition that over 200 SVs in input_df
     ##plot only those that are on different chromosomes
