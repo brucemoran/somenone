@@ -145,8 +145,10 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
   ##default genome version is hg38
   if(which_genome == "hg19"){
     bsgenome <- BSgenome.Hsapiens.UCSC.hg19::BSgenome.Hsapiens.UCSC.hg19
+    gene_symbols <- c("GRCh37_v75_SYMBOL", "count_GRCh37_v75_SYMBOLs")
   } else {
     bsgenome <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
+    gene_symbols <- c("GRCh38_v86_SYMBOL", "count_GRCh38_v86_SYMBOLs")
   }
 
   ##read input
@@ -208,17 +210,13 @@ anno_ens_cna <- function(gr, which_genome){
     GenomeInfoDb::seqlevels(genes) <- GenomeInfoDb::seqlevels(gr)
     GenomeInfoDb::seqinfo(genes) <- GenomeInfoDb::seqinfo(gr)
 
-    # GenomeInfoDb::seqlevelsStyle(genes) <- "NCBI"
-    # GenomeInfoDb::genome(genes) <- which_genome
-    # GenomeInfoDb::seqlevels(genes, pruning.mode="coarse") <- GenomeInfoDb::seqlevels(gr)
-    # names(gr) <- gr$mcols.seg
-
     hits <- as.data.frame(GenomicRanges::findOverlaps(gr, genes, ignore.strand=TRUE))
     hits$SYMBOL <- biomaRt::select(org.Hs.eg.db::org.Hs.eg.db,
                                    as.character(genes[hits$subjectHits]$entrezid),
                                    "SYMBOL")$SYMBOL
     gr$SYMBOL <- "-"
     gr$SYMBOLs <- "-"
+
     ##loop to collapse symbols per region
     print("collapsing gene symbol annotations per region")
     for(x in 1:max(hits$queryHits)){
@@ -303,6 +301,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
   } else {
     cna_master_anno_gr <-  anno_ens_cna(cna_master_gr, which_genome)
   }
+
   cna_master_anno_df <- as.data.frame(cna_master_anno_gr)
   cna_master_anno_df$width <- cna_master_anno_df$end - cna_master_anno_df$start
   readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".", anno, ".facets.CNA.master.tsv"))
@@ -318,7 +317,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
   })
 
   ##summarise master gr
-  summ_tb <- summarise_master(cna_master_anno_gr)
+  summ_tb <- summarise_master(cna_master_anno_gr, anno)
   cna_df_list_na$summary <- as.data.frame(summ_tb)
 
   openxlsx::write.xlsx(cna_df_list_na, file = paste0(tag, ".", anno, ".facets.CNA.full.xlsx"))
@@ -337,7 +336,6 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
 #' @param write_out runID and annotation strategy, "ENS" or "CGC"
 #' @param max_cna_maxd runID and annotation strategy, "ENS" or "CGC"
 #' @param sample_map named vector, names are all in samples, elements are new names
-
 #' @return none writes output files
 #' @export
 
@@ -548,8 +546,7 @@ master_intersect_cna_grlist <- function(gr_list, ps_vec, which_genome){
 
   ##check gr is A GRanges object
   if(!as.vector(class(gr_list)) %in% c("GRangesList", "list")){
-    print("Input \'gr_list\' is not a GRangesList nor list object, retry")
-    break
+    stop("Input \'gr_list\' is not a GRangesList nor list object, retry")
   }
 
   ##use bedr::bedr.join.multiple.region to make a complete set and samples
@@ -710,9 +707,11 @@ summarise_master <- function(cna_master_anno_gr){
   })
 
   ##genes affected by those
+  symbol <- grep("_SYMBOL", colnames(cna_master_anno_tb), value = TRUE)[1]
+
   genes_affected_list <- lapply(unique(cna_master_anno_tb$sampleIDs), function(f){
     ff <- dplyr::filter(.data = cna_master_anno_tb, sampleIDs %in% f)
-    fg <- dplyr::summarise(.data = ff, CGC_SYMBOL)
+    fg <- dplyr::summarise(.data = ff, !!symbol)
     fgo <- unlist(na.omit(fg))
     fgo <- gsub("NA;", "", fgo)
     fgo[fgo!="-"]
@@ -731,6 +730,7 @@ summarise_master <- function(cna_master_anno_gr){
       }
     })
   }
+
   tcn_summary_list <- lapply(unique(cna_master_anno_tb$sampleIDs), function(f){
     ff <- dplyr::filter(.data = cna_master_anno_tb, sampleIDs %in% f)
     ft <- dplyr::select(.data = ff, tidyselect::ends_with("Total_Copy_Number"))
