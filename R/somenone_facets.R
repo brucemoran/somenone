@@ -307,6 +307,22 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
   cna_master_anno_df$width <- cna_master_anno_df$end - cna_master_anno_df$start
   readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".", anno, ".facets.CNA.master.tsv"))
 
+  ##write output of CNA analysis to XLSX
+  cna_df_list <- lapply(cna_list, as.data.frame)
+  cna_df_list$master_anno_df <- cna_master_anno_df
+
+  ##replace NAs
+  cna_df_list_na <- lapply(cna_df_list, function(f){
+    f[is.na(f)] <- "-"
+    return(tibble::as_tibble(f))
+  })
+
+  ##summarise master gr
+  summ_tb <- summarise_master(cna_master_anno_gr)
+  cna_df_list_na$summary <- as.data.frame(summ_tb)
+
+  openxlsx::write.xlsx(cna_df_list_na, file = paste0(tag, ".", anno, ".facets.CNA.full.xlsx"))
+
   ##plot
   plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL)
 }
@@ -353,6 +369,9 @@ plot_out_list <- function(cna_list, pp_list, dict_file, which_genome, tag, sampl
         }
       }
     })
+    if(write_out == TRUE){
+
+    }
     cna_df <- do.call(rbind, cna_df_list)
 
     ##remove character chromosomes NB no MT, GL...
@@ -561,7 +580,8 @@ master_intersect_cna_grlist <- function(gr_list, ps_vec, which_genome){
                      strand = NULL,
                      mcols = join_chr_all_gr_tb[,c("samples_n", "sampleIDs")],
                      seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
-
+  join_chr_all_gr <- sortSeqlevels(join_chr_all_gr)
+  join_chr_all_gr <- sort(join_chr_all_gr)
   adr <- as.data.frame(join_chr_all_gr)
   GenomicRanges::width(join_chr_all_gr) <- adr$end - adr$start
 
@@ -579,10 +599,27 @@ master_intersect_cna_grlist <- function(gr_list, ps_vec, which_genome){
       gr_ff <- gr_list[[ff]]
 
       ##where gr_ff intersects with the supplied ranges
+      ##NB this will almost certainly be a subset of gr_master ranges
       hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 2))
 
+      ##due to being a subset, we insert NA rows for those missing in subjectHits (master_gr)
+      hits_list <- lapply(seq_along(gr_master), function(x){
+        if(x %in% hits$subjectHits){
+          ho <- hits[hits$subjectHits == x,]
+          rownames(ho) <- x
+          return(ho)
+        } else {
+          ho <- data.frame(queryHits = NA, subjectHits = x)
+          rownames(ho) <- x
+          return(ho)
+        }
+      })
+
+      hits_na <- do.call(rbind, hits_list)
+
       ##mcols of those hits
-      mchits <- S4Vectors::mcols(gr_ff[, ps_vec][hits$queryHits])
+      # mchits <- S4Vectors::mcols(gr_ff[, ps_vec][hits_na$queryHits])
+      mchits <- S4Vectors::mcols(gr_ff[, ps_vec])
 
       ##name based on list names and return
       names(mchits) <- paste0(names(gr_list)[ff], ".", gsub("mcols.", "", names(mchits)))
@@ -596,11 +633,7 @@ master_intersect_cna_grlist <- function(gr_list, ps_vec, which_genome){
       ##place mchits annotation as per subjectHits
       for(x in 1:length(gr_master)){
         sh <- hits$subjectHits
-        if(x %in% sh){
-          master_df[hits[sh %in% x, 2],] <- unlist(mchits[hits[sh %in% x, 1],])
-        } else {
-          next
-        }
+        master_df[hits[sh %in% x, 2],] <- unlist(mchits[hits[sh %in% x, 1],])
       }
       return(master_df)
     })
@@ -653,4 +686,70 @@ plot_from_tsv <- function(pattern, dict_file, which_genome, tag, write_out = FAL
   })
 
   plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd, sample_map)
+}
+
+#' Summarise master table
+#' @param cna_master_anno_gr annotated GRanges from master_intersect_cna_grlist + anno_cgc_cna
+#' @return list of various delights per sampleIDs combinations extant
+#' @export
+
+summarise_master <- function(cna_master_anno_gr){
+
+  cna_master_anno_tb <- tibble::as_tibble(cna_master_anno_gr)
+  genome_size <- sum(seqlengths(seqinfo(cna_master_anno_gr)))
+
+  ##find widths for each set of sampleIDs found overlapped
+  width_unique_list <- lapply(unique(cna_master_anno_tb$sampleIDs), function(f){
+    ff <- dplyr::filter(.data = cna_master_anno_tb, sampleIDs %in% f)
+    dplyr::summarise(.data = ff, width)
+  })
+
+  ##sum those to get summary
+  width_sum_unique_list <- lapply(width_unique_list, function(f){
+    return(list(sum = sum(f), prop = sum(f)/genome_size))
+  })
+
+  ##genes affected by those
+  genes_affected_list <- lapply(unique(cna_master_anno_tb$sampleIDs), function(f){
+    ff <- dplyr::filter(.data = cna_master_anno_tb, sampleIDs %in% f)
+    fg <- dplyr::summarise(.data = ff, CGC_SYMBOL)
+    fgo <- unlist(na.omit(fg))
+    fgo <- gsub("NA;", "", fgo)
+    fgo[fgo!="-"]
+  })
+
+  #losses and gains
+  summarise_tcn <- function(rowin){
+    apply(rowin, 1, function(r){
+      rowina <- na.omit(r)
+      if(all(rowina>2)){
+        return("GAIN")
+      } else if(all(rowina < 2)){
+        return("LOSS")
+      } else {
+        return("BOTH")
+      }
+    })
+  }
+  tcn_summary_list <- lapply(unique(cna_master_anno_tb$sampleIDs), function(f){
+    ff <- dplyr::filter(.data = cna_master_anno_tb, sampleIDs %in% f)
+    ft <- dplyr::select(.data = ff, tidyselect::ends_with("Total_Copy_Number"))
+    table(summarise_tcn(ft))
+  })
+
+  ##name all the same
+  names(tcn_summary_list) <- names(genes_affected_list) <- names(width_unique_list) <- names(width_sum_unique_list) <- unique(cna_master_anno_tb$sampleIDs)
+
+  ##create table output
+  genesaf <- unlist(lapply(genes_affected_list, function(f){paste(sort(f), collapse = ",")}))
+
+  summ_tb <- tibble::tibble(sampleIDs = unique(cna_master_anno_tb$sampleIDs),
+                            tcn_summary = unlist(lapply(tcn_summary_list, function(f){paste(names(f), collapse = ";")})),
+                            tcn_ns = unlist(lapply(tcn_summary_list, function(f){paste(f, collapse = ";")})),
+                            width_sum_total = unlist(lapply(width_sum_unique_list, function(f){f$sum})),
+                            width_sum_prop = unlist(lapply(width_sum_unique_list, function(f){f$prop})),
+                            n_genes_affected = unlist(lapply(genesaf, function(f){length(strsplit(f, ",")[[1]])})),
+                            genes_affected = genesaf)
+
+  return(dplyr::arrange(.data = summ_tb, desc(width_sum_prop)))
 }
