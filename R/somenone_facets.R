@@ -145,8 +145,10 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
   ##default genome version is hg38
   if(which_genome == "hg19"){
     bsgenome <- BSgenome.Hsapiens.UCSC.hg19::BSgenome.Hsapiens.UCSC.hg19
+    gene_symbols <- c("GRCh37_v75_SYMBOL", "count_GRCh37_v75_SYMBOLs")
   } else {
     bsgenome <- BSgenome.Hsapiens.UCSC.hg38::BSgenome.Hsapiens.UCSC.hg38
+    gene_symbols <- c("GRCh38_v86_SYMBOL", "count_GRCh38_v86_SYMBOLs")
   }
 
   ##read input
@@ -208,17 +210,13 @@ anno_ens_cna <- function(gr, which_genome){
     GenomeInfoDb::seqlevels(genes) <- GenomeInfoDb::seqlevels(gr)
     GenomeInfoDb::seqinfo(genes) <- GenomeInfoDb::seqinfo(gr)
 
-    # GenomeInfoDb::seqlevelsStyle(genes) <- "NCBI"
-    # GenomeInfoDb::genome(genes) <- which_genome
-    # GenomeInfoDb::seqlevels(genes, pruning.mode="coarse") <- GenomeInfoDb::seqlevels(gr)
-    # names(gr) <- gr$mcols.seg
-
     hits <- as.data.frame(GenomicRanges::findOverlaps(gr, genes, ignore.strand=TRUE))
     hits$SYMBOL <- biomaRt::select(org.Hs.eg.db::org.Hs.eg.db,
                                    as.character(genes[hits$subjectHits]$entrezid),
                                    "SYMBOL")$SYMBOL
     gr$SYMBOL <- "-"
     gr$SYMBOLs <- "-"
+
     ##loop to collapse symbols per region
     print("collapsing gene symbol annotations per region")
     for(x in 1:max(hits$queryHits)){
