@@ -4,7 +4,7 @@
 \alias{output_out_list}
 \title{Plotting and Output from 'out_list' object}
 \usage{
-output_out_list(out_list, in_list, dict_file, which_genome, tag)
+output_out_list(out_list, in_list, dict_file, which_genome, tag, cgc_gr = NULL)
 }
 \arguments{
 \item{out_list}{resulting from process_in_list}

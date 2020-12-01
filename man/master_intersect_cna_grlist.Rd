@@ -4,10 +4,12 @@
 \alias{master_intersect_cna_grlist}
 \title{Find intersect from list of CNA GRanges}
 \usage{
-master_intersect_cna_grlist(gr_list, ps_vec)
+master_intersect_cna_grlist(gr_list, ps_vec, which_genome)
 }
 \arguments{
 \item{ps_vec}{mcols columns to keep p(er) s(ample; appended with list element's name)}
+
+\item{which_genome}{the genome assembly used, "hg19" or "hg38"}
 
 \item{cna_list}{list of named GRanges objects}
 }

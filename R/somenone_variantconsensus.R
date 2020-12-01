@@ -1,4 +1,4 @@
-#' somtic_variant_consensus functions
+#' somatic_variant_consensus functions
 #'
 #' Primary function to call others and produce plots, table
 #' @param germline_id ID for germline_id sample

@@ -2,7 +2,7 @@
 % Please edit documentation in R/somenone_variantconsensus.R
 \name{variant_consensus}
 \alias{variant_consensus}
-\title{somtic_variant_consensus functions}
+\title{somatic_variant_consensus functions}
 \usage{
 variant_consensus(
   germline_id,
