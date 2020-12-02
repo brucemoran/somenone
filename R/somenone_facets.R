@@ -216,7 +216,7 @@ anno_ens_cna <- function(gr, which_genome){
     print("hits")
     hits <- as.data.frame(GenomicRanges::findOverlaps(gr, genes, ignore.strand=TRUE))
     print("hits symbols")
-    
+
     hits$SYMBOL <- biomaRt::select(org.Hs.eg.db::org.Hs.eg.db,
                                    as.character(genes[hits$subjectHits]$entrezid),
                                    "SYMBOL")$SYMBOL
@@ -323,7 +323,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
   })
 
   ##summarise master gr
-  summ_tb <- summarise_master(cna_master_anno_gr, anno)
+  summ_tb <- summarise_master(cna_master_anno_gr)
   cna_df_list_na$summary <- as.data.frame(summ_tb)
 
   openxlsx::write.xlsx(cna_df_list_na, file = paste0(tag, ".", anno, ".facets.CNA.full.xlsx"))
