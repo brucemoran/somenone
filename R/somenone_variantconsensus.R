@@ -15,6 +15,7 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
 
   options(stringAsFactors = FALSE)
 
+
   ##parse VCFs
   ##all should exist in current dir, all output to same dir
   vcf_vec <- dir(pattern = vep_vcf_pattern)
