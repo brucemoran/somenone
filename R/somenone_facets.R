@@ -216,6 +216,7 @@ anno_ens_cna <- function(gr, which_genome){
     print("hits")
     hits <- as.data.frame(GenomicRanges::findOverlaps(gr, genes, ignore.strand=TRUE))
     print("hits symbols")
+    
     hits$SYMBOL <- biomaRt::select(org.Hs.eg.db::org.Hs.eg.db,
                                    as.character(genes[hits$subjectHits]$entrezid),
                                    "SYMBOL")$SYMBOL
