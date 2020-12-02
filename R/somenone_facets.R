@@ -197,6 +197,7 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
 
 anno_ens_cna <- function(gr, which_genome){
     ##annotation
+    print("Load genes, symbols")
     if(which_genome == "hg19"){
       genes <- ensembldb::genes(EnsDb.Hsapiens.v75::EnsDb.Hsapiens.v75)
       gene_symbols <- c("GRCh37_v75_SYMBOL", "count_GRCh37_v75_SYMBOLs")
@@ -206,11 +207,14 @@ anno_ens_cna <- function(gr, which_genome){
     }
 
     ##used
+    print("Which genes")
     genes <- genes[GenomeInfoDb::seqnames(genes) %in% GenomeInfoDb::seqnames(seqinfo(gr)),]
+    print("Seqlevels")
     GenomeInfoDb::seqlevels(genes) <- GenomeInfoDb::seqlevels(gr)
     GenomeInfoDb::seqinfo(genes) <- GenomeInfoDb::seqinfo(gr)
-
+    print("hits")
     hits <- as.data.frame(GenomicRanges::findOverlaps(gr, genes, ignore.strand=TRUE))
+    print("hits symbols")
     hits$SYMBOL <- biomaRt::select(org.Hs.eg.db::org.Hs.eg.db,
                                    as.character(genes[hits$subjectHits]$entrezid),
                                    "SYMBOL")$SYMBOL
