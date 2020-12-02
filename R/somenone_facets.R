@@ -207,13 +207,9 @@ anno_ens_cna <- function(gr, which_genome){
 
     ##used
     genes <- genes[GenomeInfoDb::seqnames(GenomeInfoDb::seqinfo(genes)) %in% GenomeInfoDb::seqnames(GenomeInfoDb::seqinfo(gr)),]
-    print("seqlevels")
     GenomeInfoDb::seqlevels(genes, pruning.mode="coarse") <- GenomeInfoDb::seqlevels(gr)
-    print("seqinfo")
     GenomeInfoDb::seqinfo(genes) <- GenomeInfoDb::seqinfo(gr)
-    print("hits")
     hits <- as.data.frame(GenomicRanges::findOverlaps(gr, genes, ignore.strand=TRUE))
-    print("hits symbols")
 
     hits$SYMBOL <- biomaRt::select(org.Hs.eg.db::org.Hs.eg.db,
                                    as.character(genes[hits$subjectHits]$entrezid),
