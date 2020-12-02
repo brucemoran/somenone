@@ -209,7 +209,7 @@ anno_ens_cna <- function(gr, which_genome){
 
     ##used
     print("Which genes")
-    genes <- genes[GenomeInfoDb::seqnames(genes) %in% GenomeInfoDb::seqnames(GenomeInfoDb::seqinfo(gr)),]
+    genes <- genes[GenomeInfoDb::seqnames(GenomeInfoDb::seqinfo(genes)) %in% GenomeInfoDb::seqnames(GenomeInfoDb::seqinfo(gr)),]
     print("Seqlevels")
     GenomeInfoDb::seqlevels(genes) <- GenomeInfoDb::seqlevels(gr)
     GenomeInfoDb::seqinfo(genes) <- GenomeInfoDb::seqinfo(gr)
