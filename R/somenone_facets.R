@@ -304,7 +304,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
 
   cna_master_anno_df <- as.data.frame(cna_master_anno_gr)
   cna_master_anno_df$width <- cna_master_anno_df$end - cna_master_anno_df$start
-  readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".", anno, ".facets.CNA.master.tsv"))
+  readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".facets.CNA.master.tsv"))
 
   ##write output of CNA analysis to XLSX
   cna_df_list <- lapply(cna_list, as.data.frame)
@@ -320,7 +320,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
   summ_tb <- summarise_master(cna_master_anno_gr)
   cna_df_list_na$summary <- as.data.frame(summ_tb)
 
-  openxlsx::write.xlsx(cna_df_list_na, file = paste0(tag, ".", anno, ".facets.CNA.full.xlsx"))
+  openxlsx::write.xlsx(cna_df_list_na, file = paste0(tag, ".facets.CNA.full.xlsx"))
 
   ##plot
   plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL)
