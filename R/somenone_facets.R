@@ -753,3 +753,168 @@ summarise_master <- function(cna_master_anno_gr){
 
   return(dplyr::arrange(.data = summ_tb, desc(width_sum_prop)))
 }
+
+#' Take input of a GRanges object, and use that seqinfo to bin by bin_size
+#'
+#' @param gr GRanges object with seqinfo used to make bins
+#' @param genome use this to add seqinfo if none extant (e.g. "hg19", "hg38")
+#' @param bin_size base pairs by which to bin
+#' @param mcol_in string naming mcols to use for binning (one only)
+#' @param mcol_in_lim numeric on which to screen mcol_in column; if length>1, take all outside the range suplied
+#' @param one_to_x logical indicating whether to use chr1..chrX for bin, as opposed to what is in input GRanges
+#' @return GRanges binned on mcol_in
+#' @export
+
+bin_granges <- function(gr, genome = NULL, bin_size=NULL, mcol_in, mcol_in_lim = NULL, one_to_x = TRUE){
+
+  ##check gr is A GRanges object
+  if(!as.vector(class(gr)) %in% c("GRanges", "GRangesList", "list")){
+    stop("Input \'gr\' is not a GRanges, GRangesList nor list object, retry")
+  }
+
+  ##if grList, set gr to a single entity therein for binning
+  if(as.vector(class(gr)) %in% c("GRangesList", "list")){
+    gri <- gr[[1]]
+  } else {
+    if(!as.vector(class(gr)) == "GRanges"){
+      stop("Input \'gr\' list does not contain a GRanges object, retry")
+    } else {
+      gri <- gr
+    }
+  }
+
+  ##test seqinfo
+  print("Testing seqinfo on GRanges input...")
+  gri <- test_seqinfo(gr = gri, genome = genome)
+
+  ##set default
+  if(is.null(bin_size)){
+    print("Bin size is not specified, setting to 10MB")
+    bin_size <- 10000000
+  } else {
+    bin_size <- as.numeric(bin_size)
+  }
+
+  ##make bin gr
+  print("Making bins...")
+  grb <- bin_maker(grr = gri, bin_size = bin_size, genome = genome, one_to_x = TRUE)
+
+  ##screen based on mcols_in_lim
+  if(!is.null(mcol_in_lim)){
+    if(length(mcol_in_lim) == 1) {
+      grf <- gri[unlist(S4Vectors::mcols(gri[,mcol_in]))!=mcol_in_lim]
+    } else {
+      grf <- gri[unlist(S4Vectors::mcols(gri[,mcol_in]))<mcol_in_lim[1] & unlist(S4Vectors::mcols(gri[,mcol_in]))>mcol_in_lim[2] ]
+    }
+  } else {
+    grf <- gri
+  }
+
+  ##findoverlaps, mcols on mcol_in
+  print("Finding overlaps...")
+  hits <- as.data.frame(GenomicRanges::findOverlaps(grf, grb, ignore.strand=TRUE, type = "any"))
+  bin_mcol_qh <- S4Vectors::mcols(grf)[hits$queryHits, mcol_in]
+  S4Vectors::mcols(grb)[mcol_in] <- NA
+  S4Vectors::mcols(grb)[hits$subjectHits, mcol_in] <- bin_mcol_qh
+
+  return(grb)
+
+  ##old
+  ##N.B. that hits can include multiple 'subjectHits', i.e. bins can be hit by more that one CNA
+  ##here we test if: those are the same value (and include just that value)
+  ##different value with one == 2, include other
+  ##fail, reduce bin size below
+  # grb$x <- S4Vectors::mcols(grf[hits$queryHits, mcol_in])
+  # gr$CGC_SYMBOLs <- "-"
+  # ##loop to collapse symbols per region
+  # for(x in 1:max(hits$queryHits)){
+  #   hitsx <- as.vector(sort(unique(hits$SYMBOL[hits$queryHits==x])))
+  #   hitsx <- hitsx[!is.na(hitsx)]
+  #   if(length(hitsx)==0){gr$CGC_SYMBOL[x] <- NA; gr$CGC_SYMBOLs[x] <- 0}
+  #   else{
+  #     gr$CGC_SYMBOL[x] <- base::paste(hitsx[2:length(hitsx)], collapse=";")
+  #     gr$CGC_SYMBOLs[x] <- length(hitsx)-1;
+  #   }
+  # }
+}
+
+#' Take input of a GRanges object, and use that seqinfo to bin by bin_size
+#'
+#' @param grr GRanges object with seqinfo used to make bins
+#' @param bin_size base pairs by which to bin
+#' @param genome use this to add seqinfo if none extant (e.g. "hg19", "hg38")
+#' @param one_to_x logical indicating whether to use chr1..chrX for bin, as opposed to what is in input GRanges
+#' @return GRanges bin
+#' @export
+
+bin_maker <- function(grr, bin_size = 30000, genome = NULL, one_to_x = TRUE){
+
+  if(one_to_x == FALSE){
+    ##new GRanges across that bin based on that seqinfo
+    grri <- test_seqinfo(grr, genome = genome)
+
+    sn <- GenomeInfoDb::seqnames(GenomeInfoDb::seqinfo(grri))
+    sl <- GenomeInfoDb::seqlengths(GenomeInfoDb::seqinfo(grri))
+    seqinf <- GenomeInfoDb::seqinfo(grri)
+    genome <- as.vector(GenomeInfoDb::genome(gri)[1])
+
+  } else {
+    sn <- c(1:22, "X")
+    seqinf <- GenomeInfoDb::fetchExtendedChromInfoFromUCSC(genome)
+    seqinf <- seqinf[seqinf$NCBI_seqlevel %in% sn,]
+    sl <- seqinf$UCSC_seqlength
+    genome <- genome
+  }
+  ##create IRanges for seqnames and seqlengths
+  ##combine into bin GRange
+  print(sn)
+  print(sl)
+  print(seqinf)
+
+  grbList <- lapply(seq_along(sn), function(f){
+      print(f)
+      print(class(sl[f]))
+      print(class(bin_size))
+      st <- seq(from = 1, to = sl[f], by = bin_size)
+      print("_1")
+      nd <- c(seq(st[2], sl[f], by = bin_size), as.vector(sl[f])+1)-1
+      print("_2")
+      grsn <- GenomicRanges::GRanges(seqnames = sn[f], IRanges::IRanges(start = st, end = nd), strand = "*")
+      print("_3")
+      GenomeInfoDb::genome(grsn) <- genome
+      print("_4")
+      GenomeInfoDb::seqlengths(grsn) <- sl[f]
+      print("_5")
+      return(grsn)
+  })
+  grb <- unlist(as(grbList, "GRangesList"))
+  S4Vectors::mcols(grb) <- bin_size
+  names(S4Vectors::mcols(grb)) <- "bin_size"
+  return(grb)
+}
+
+#' Test for seqinfo
+
+#' @param gr GRanges to test for seqinfo
+#' @param genome string indicating genome to add seqinfo from if missing
+#' @return GRanges gr with seqinfo from genome if required
+#' @export
+
+test_seqinfo <- function(gr, genome = NULL){
+  adf <- as.data.frame(GenomeInfoDb::seqinfo(gr))[1,1]
+  if(is.na(adf)){
+    if(is.null(genome)){
+      stop("Input has no seqinfo defined, and no genome specified, please retry with seqinfo or genome")
+    } else {
+      print(paste0("Using ", genome, " to get seqinfo"))
+      seqinf <- GenomeInfoDb::fetchExtendedChromInfoFromUCSC(genome)
+      seqinf <- seqinf[seqinf$NCBI_seqlevel %in% GenomeInfoDb::seqlevels(gr),]
+      GenomeInfoDb::seqlengths(gr) <- seqinf$UCSC_seqlength
+      GenomeInfoDb::genome(gr) <- genome
+      return(gr)
+    }
+  } else {
+    print("Input has seqinfo already")
+    return(gr)
+  }
+}
