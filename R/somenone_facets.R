@@ -872,19 +872,13 @@ bin_maker <- function(grr, bin_size = 30000, genome = NULL, one_to_x = TRUE){
   print(seqinf)
 
   grbList <- lapply(seq_along(sn), function(f){
-      print(f)
-      print(class(sl[f]))
-      print(class(bin_size))
-      st <- seq(from = 1, to = sl[f], by = bin_size)
-      print("_1")
+      st <- seq(from = 0, to = sl[f], by = bin_size)
       nd <- c(seq(st[2], sl[f], by = bin_size), as.vector(sl[f])+1)-1
-      print("_2")
-      grsn <- GenomicRanges::GRanges(seqnames = sn[f], IRanges::IRanges(start = st, end = nd), strand = "*")
-      print("_3")
+      grsn <- GenomicRanges::GRanges(seqnames = sn[f],
+                                     IRanges::IRanges(start = st, end = nd),
+                                     strand = "*")
       GenomeInfoDb::genome(grsn) <- genome
-      print("_4")
       GenomeInfoDb::seqlengths(grsn) <- sl[f]
-      print("_5")
       return(grsn)
   })
   grb <- unlist(as(grbList, "GRangesList"))
