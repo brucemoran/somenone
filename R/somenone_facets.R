@@ -302,6 +302,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
     cna_master_anno_gr <-  anno_ens_cna(cna_master_gr, which_genome)
   }
 
+  GenomeInfoDb::seqinfo(cna_master_anno_gr) <- GenomeInfoDb::seqinfo(cna_list[[1]])
   cna_master_anno_df <- as.data.frame(cna_master_anno_gr)
   cna_master_anno_df$width <- cna_master_anno_df$end - cna_master_anno_df$start
   readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".facets.CNA.master.tsv"))
@@ -367,9 +368,7 @@ plot_out_list <- function(cna_list, pp_list, dict_file, which_genome, tag, sampl
         }
       }
     })
-    if(write_out == TRUE){
 
-    }
     cna_df <- do.call(rbind, cna_df_list)
 
     ##remove character chromosomes NB no MT, GL...
@@ -512,10 +511,7 @@ seqlengths_df <- function(in_seqs, dict_file, which_genome){
                         start = 1,
                         end = as.numeric(gsub("LN:","", dict_seqs[,3])),
                         stringsAsFactors = FALSE)
-  print(seqlens)
-  print(in_seqs)
-  print(is.element(seqlens[,1],
-                     unique(as.vector(in_seqs))))
+
   ##find those chromosomes in inSeqs
   seqlens <- seqlens[is.element(seqlens[,1],
                      unique(as.vector(in_seqs))),]
@@ -552,95 +548,107 @@ master_intersect_cna_grlist <- function(gr_list, ps_vec, which_genome){
   ##use bedr::bedr.join.multiple.region to make a complete set and samples
   ##lapply over gr_list which creates character vector list in "chrX:1-100" format
   ##thinks it's 0-based so add 1...
-  chr_list <- lapply(gr_list, function(f){
-      fb <- apply(as.data.frame(f), 1, function(ff){
-          ff <- unlist(ff)
-          paste0("chr", ff[1], ":", gsub(" ", "", ff[2]), "-", gsub(" ", "", ff[3]))
-        })
-      bedr::bedr.sort.region(fb)
-    })
-  join_chr_all_tb <- tibble::as_tibble(bedr::bedr.join.multiple.region(chr_list, build = which_genome))
+  if(length(gr_list) > 1){
 
-  print("Joining into single GRanges...")
-  join_chr_all_gr_tb <- tidyr::separate(data = join_chr_all_tb,
-                                        col =  index,
-                                        into = c("seqnames", "start", "end"),
-                                        sep = "[:-]")
-  join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
-                                      seqnames,
-                                      start, end,
-                                      "samples_n" = n.overlaps,
-                                      "sampleIDs" = names)
-  join_chr_all_gr <- GenomicRanges::GRanges(seqnames = gsub("chr", "", unlist(join_chr_all_gr_tb[,1])),
-                     ranges = IRanges::IRanges(start = as.numeric(unlist(join_chr_all_gr_tb[,2])),
-                                               end = as.numeric(unlist(join_chr_all_gr_tb[,3]))),
-                     strand = NULL,
-                     mcols = join_chr_all_gr_tb[,c("samples_n", "sampleIDs")],
-                     seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
-  join_chr_all_gr <- sortSeqlevels(join_chr_all_gr)
-  join_chr_all_gr <- sort(join_chr_all_gr)
-  adr <- as.data.frame(join_chr_all_gr)
-  GenomicRanges::width(join_chr_all_gr) <- adr$end - adr$start
-
-  colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
-
-  ##sample names
-  samples <- unique(unlist(lapply(unique(join_chr_all_gr$sampleIDs), function(s){
-      stringr::str_split(s, ",")[[1]]
-    })))
-
-  ##function to make master table mcols
-  master_mcols <- function(gr_list, gr_master, ps_vec){
-    lapply(seq_along(gr_list), function(ff){
-      ##first GRanges object
-      gr_ff <- gr_list[[ff]]
-
-      ##where gr_ff intersects with the supplied ranges
-      ##NB this will almost certainly be a subset of gr_master ranges
-      hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 2))
-
-      ##due to being a subset, we insert NA rows for those missing in subjectHits (master_gr)
-      hits_list <- lapply(seq_along(gr_master), function(x){
-        if(x %in% hits$subjectHits){
-          ho <- hits[hits$subjectHits == x,]
-          rownames(ho) <- x
-          return(ho)
-        } else {
-          ho <- data.frame(queryHits = NA, subjectHits = x)
-          rownames(ho) <- x
-          return(ho)
-        }
+    chr_list <- lapply(gr_list, function(f){
+        fb <- apply(as.data.frame(f), 1, function(ff){
+            ff <- unlist(ff)
+            paste0("chr", ff[1], ":", gsub(" ", "", ff[2]), "-", gsub(" ", "", ff[3]))
+          })
+        bedr::bedr.sort.region(fb)
       })
 
-      hits_na <- do.call(rbind, hits_list)
+    join_chr_all_tb <- tibble::as_tibble(bedr::bedr.join.multiple.region(chr_list, build = which_genome))
 
-      ##mcols of those hits
-      # mchits <- S4Vectors::mcols(gr_ff[, ps_vec][hits_na$queryHits])
-      mchits <- S4Vectors::mcols(gr_ff[, ps_vec])
+    print("Joining into single GRanges...")
+    join_chr_all_gr_tb <- tidyr::separate(data = join_chr_all_tb,
+                                          col =  index,
+                                          into = c("seqnames", "start", "end"),
+                                          sep = "[:-]")
+    join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
+                                        seqnames,
+                                        start, end,
+                                        "samples_n" = n.overlaps,
+                                        "sampleIDs" = names)
+    join_chr_all_gr <- GenomicRanges::GRanges(seqnames = gsub("chr", "", unlist(join_chr_all_gr_tb[,1])),
+                       ranges = IRanges::IRanges(start = as.numeric(unlist(join_chr_all_gr_tb[,2])),
+                                                 end = as.numeric(unlist(join_chr_all_gr_tb[,3]))),
+                       strand = NULL,
+                       mcols = join_chr_all_gr_tb[,c("samples_n", "sampleIDs")],
+                       seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
+    join_chr_all_gr <- sortSeqlevels(join_chr_all_gr)
+    join_chr_all_gr <- sort(join_chr_all_gr)
+    adr <- as.data.frame(join_chr_all_gr)
+    GenomicRanges::width(join_chr_all_gr) <- adr$end - adr$start
 
-      ##name based on list names and return
-      names(mchits) <- paste0(names(gr_list)[ff], ".", gsub("mcols.", "", names(mchits)))
+    colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
 
-      ##create master output, same size as gr_master and with mcols from queryHits
-      ##in the place where subjectHits matched
-      master_df <- as.data.frame(matrix(nrow = length(gr_master),
-                                        ncol = length(names(mchits))))
-      colnames(master_df) <- names(mchits)
+    ##sample names
+    samples <- unique(unlist(lapply(unique(join_chr_all_gr$sampleIDs), function(s){
+        stringr::str_split(s, ",")[[1]]
+      })))
 
-      ##place mchits annotation as per subjectHits
-      for(x in 1:length(gr_master)){
-        sh <- hits$subjectHits
-        master_df[hits[sh %in% x, 2],] <- unlist(mchits[hits[sh %in% x, 1],])
-      }
-      return(master_df)
-    })
+    ##function to make master table mcols
+    master_mcols <- function(gr_list, gr_master, ps_vec){
+      lapply(seq_along(gr_list), function(ff){
+        ##first GRanges object
+        gr_ff <- gr_list[[ff]]
+
+        ##where gr_ff intersects with the supplied ranges
+        ##NB this will almost certainly be a subset of gr_master ranges
+        hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 2))
+
+        ##due to being a subset, we insert NA rows for those missing in subjectHits (master_gr)
+        hits_list <- lapply(seq_along(gr_master), function(x){
+          if(x %in% hits$subjectHits){
+            ho <- hits[hits$subjectHits == x,]
+            rownames(ho) <- x
+            return(ho)
+          } else {
+            ho <- data.frame(queryHits = NA, subjectHits = x)
+            rownames(ho) <- x
+            return(ho)
+          }
+        })
+
+        hits_na <- do.call(rbind, hits_list)
+
+        ##mcols of those hits
+        # mchits <- S4Vectors::mcols(gr_ff[, ps_vec][hits_na$queryHits])
+        mchits <- S4Vectors::mcols(gr_ff[, ps_vec])
+
+        ##name based on list names and return
+        names(mchits) <- paste0(names(gr_list)[ff], ".", gsub("mcols.", "", names(mchits)))
+
+        ##create master output, same size as gr_master and with mcols from queryHits
+        ##in the place where subjectHits matched
+        master_df <- as.data.frame(matrix(nrow = length(gr_master),
+                                          ncol = length(names(mchits))))
+        colnames(master_df) <- names(mchits)
+
+        ##place mchits annotation as per subjectHits
+        for(x in 1:length(gr_master)){
+          sh <- hits$subjectHits
+          master_df[hits[sh %in% x, 2],] <- unlist(mchits[hits[sh %in% x, 1],])
+        }
+        return(master_df)
+      })
+    }
+
+    ##using the above as a master GRanges object, walk through per sample
+    ##create per sample df to be added to mcol
+    S4Vectors::mcols(join_chr_all_gr) <- c(S4Vectors::mcols(join_chr_all_gr), do.call(cbind, master_mcols(gr_list, join_chr_all_gr, ps_vec)))
+
+    ##return GRanges with mcols per sample
+
+  } else{
+    join_chr_all_tb <- tibble::as_tibble(gr_list[[1]])
+    join_chr_all_tb$sampleIDs <- rep(names(gr_list), times = dim(join_chr_all_tb)[1])
+    join_chr_all_gr <- GenomicRanges::GRanges(join_chr_all_tb)
+
+    ##return single GRanges
+
   }
-
-  ##using the above as a master GRanges object, walk through per sample
-  ##create per sample df to be added to mcol
-  S4Vectors::mcols(join_chr_all_gr) <- c(S4Vectors::mcols(join_chr_all_gr), do.call(cbind, master_mcols(gr_list, join_chr_all_gr, ps_vec)))
-
-  ##return GRanges with mcols per sample
   return(join_chr_all_gr)
 }
 
@@ -693,7 +701,7 @@ plot_from_tsv <- function(pattern, dict_file, which_genome, tag, write_out = FAL
 summarise_master <- function(cna_master_anno_gr){
 
   cna_master_anno_tb <- tibble::as_tibble(cna_master_anno_gr)
-  genome_size <- sum(seqlengths(seqinfo(cna_master_anno_gr)))
+  genome_size <- sum(GenomeInfoDb::seqlengths(GenomeInfoDb::seqinfo(cna_master_anno_gr)))
 
   ##find widths for each set of sampleIDs found overlapped
   width_unique_list <- lapply(unique(cna_master_anno_tb$sampleIDs), function(f){
@@ -711,7 +719,7 @@ summarise_master <- function(cna_master_anno_gr){
 
   genes_affected_list <- lapply(unique(cna_master_anno_tb$sampleIDs), function(f){
     ff <- dplyr::filter(.data = cna_master_anno_tb, sampleIDs %in% f)
-    fg <- dplyr::summarise(.data = ff, !!symbol)
+    fg <- dplyr::summarise(.data = ff, !!as.symbol(symbol))
     fgo <- unlist(na.omit(fg))
     fgo <- gsub("NA;", "", fgo)
     fgo[fgo!="-"]
