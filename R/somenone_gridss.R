@@ -33,10 +33,13 @@ gridss_parse_plot <- function(vcf, dict_file, germline_id, which_genome = NULL, 
   prv_df <- as.data.frame(gridss_parsed_multi_list[[2]])
 
   ##plotting
+  if(dim(rec_df)[1] > 0){
   prep_plot_circos_sv(input_df = rec_df,
                       dict_file = dict_file,
                       which_genome = which_genome,
                       output_path = paste0(output_path, ".recurrent"))
+  }
+
   prep_plot_circos_sv(input_df = prv_df,
                       dict_file = dict_file,
                       which_genome = which_genome,
@@ -95,26 +98,28 @@ gridss_parse_multi_vcf <- function(vcf, germline_id, which_genome = NULL){
   bedpe_rb_rec <- dplyr::distinct(bedpe_rb_rec)
 
   ##lapply to paste sampleIDs, colour by combinations therein
-  sample_rec_list <- lapply(1:dim(bedpe_rb_rec)[1], function(f){
-    lj <- dplyr::left_join(bedpe_rb_rec[f,],
-              bedpe_rb,
-              by=c("start1" = "start1",
-                   "end1" = "end1",
-                   "start2" = "start2",
-                   "end2" = "end2"))
-    ljs <- dplyr::select(lj, sampleID)
-    lju <- unlist(ljs)
-    ljs <- sort(lju)
-    paste(ljs, collapse=",")
-  })
+  if(dim(bedpe_rb_rec)[1] > 0){
+    sample_rec_list <- lapply(1:dim(bedpe_rb_rec)[1], function(f){
+      lj <- dplyr::left_join(bedpe_rb_rec[f,],
+                bedpe_rb,
+                by=c("start1" = "start1",
+                     "end1" = "end1",
+                     "start2" = "start2",
+                     "end2" = "end2"))
+      ljs <- dplyr::select(lj, sampleID)
+      lju <- unlist(ljs)
+      ljs <- sort(lju)
+      paste(ljs, collapse=",")
+    })
 
-  ##add to bedpe_rb_rec
-  bedpe_rb_rec$sampleID <- unlist(sample_rec_list)
+    ##add to bedpe_rb_rec
+    bedpe_rb_rec$sampleID <- unlist(sample_rec_list)
 
-  ##colour in based on samples with SV
-  colz_rec <- grDevices::rainbow(n = length(table(unlist(sample_rec_list))))
-  names(colz_rec) <- names(table(unlist(sample_rec_list)))
-  bedpe_rb_rec$colour <- colz_rec[match(bedpe_rb_rec$sampleID, names(colz_rec))]
+    ##colour in based on samples with SV
+    colz_rec <- grDevices::rainbow(n = length(table(unlist(sample_rec_list))))
+    names(colz_rec) <- names(table(unlist(sample_rec_list)))
+    bedpe_rb_rec$colour <- colz_rec[match(bedpe_rb_rec$sampleID, names(colz_rec))]
+  }
 
   ##non-recurrent
   bedpe_rb_pri <- dplyr::mutate_if(bedpe_rb, is.factor,as.numeric)
@@ -241,9 +246,9 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
     if(dim(input_df)[1] > 50){
       print(paste0("Total of ", dim(input_df)[1], " SV found, also plotting those on different chromosomes only"))
       input_df_tr_2 <- input_df[as.vector(input_df$chrom1) != as.vector(input_df$chrom2),]
-      input_df_tr_1 <- input_df
+      input_df_tr_1 <- input_df[order(input_df$qualscore, decreasing = TRUE),]
     } else {
-      input_df_tr_1 <- input_df
+      input_df_tr_1 <- input_df[order(input_df$qualscore, decreasing = TRUE),]
     }
 
     ##create seqlengths df for ideogram
@@ -291,10 +296,15 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
   region_1 <- region_1[region_1_in & region_2_in,]
   region_2 <- region_2[region_1_in & region_2_in,]
   region_c <- input_df[region_1_in & region_2_in, "colour"]
+  log10quals <- log10(input_df[region_1_in & region_2_in, "qualscore"])
   labels_o1 <- input_df[region_1_in & region_2_in, c("chrom1", "start1", "end1", "symbol1", "colour")]
   labels_o2 <- input_df[region_1_in & region_2_in, c("chrom2", "start2", "end2", "symbol2", "colour")]
   colnames(labels_o1) <- colnames(labels_o2) <- c("chr1", "start", "end", "symbol", "colour")
   labels_o <- rbind(labels_o1, labels_o2)
+  labels_o20 <- rbind(labels_o1[1:20,], labels_o2[1:20,])
+
+  ##cChimerKBv4
+  chim_df <- findin_chimerkb4(input_df)
 
   ##circize plot
   ##colours per-sample
@@ -302,21 +312,43 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
 
   ##initialise blank ideogram
   circlize::circos.initializeWithIdeogram(plotType = NULL)
+
   ##labels on outer track if enough space...
-  if(dim(region_1)[1] < 200) {
-  circlize::circos.genomicLabels(labels_o,
-                       labels.column = "symbol",
-                       side = "outside",
-                       col = labels_o$colour,
-                       line_col = labels_o$colour)
+  if(!is.null(chim_df)){
+    labels_o1 <- chim_df[, c("chrom1", "start1", "end1", "symbol1", "colour")]
+    labels_o2 <- chim_df[, c("chrom2", "start2", "end2", "symbol2", "colour")]
+    colnames(labels_o1) <- colnames(labels_o2) <- c("chr", "start", "end", "symbol", "colour")
+    labels_o <- rbind(labels_o1, labels_o2)
+    circlize::circos.genomicLabels(labels_o,
+                         labels.column = "symbol",
+                         side = "outside",
+                         col = labels_o$colour,
+                         line_col = labels_o$colour)
+  } else {
+    if(dim(region_1)[1] < 20) {
+      circlize::circos.genomicLabels(labels_o,
+                           labels.column = "symbol",
+                           side = "outside",
+                           col = labels_o$colour,
+                           line_col = labels_o$colour)
+    } else {
+      ##top 20 best by qualscore
+      circlize::circos.genomicLabels(labels_o20,
+                           labels.column = "symbol",
+                           side = "outside",
+                           col = labels_o20$colour,
+                           line_col = labels_o20$colour)
+    }
   }
+
   ##cytoband data
   circlize::circos.genomicIdeogram(cytoband)
 
   ##links
   circlize::circos.genomicLink(region1 = region_1,
                                region2 = region_2,
-                               col = region_c)
+                               col = region_c,
+                               lwd = log10quals/1.3)
   ##legend
   nms <- gsub(",", ", ", unique(names(region_c)))
   colz <- unique(region_c)
@@ -331,4 +363,62 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
   grid::grid.draw(lgnd)
 
   grDevices::dev.off()
+}
+
+#' Download and parse ChimerKB v4 for annotating known fusions
+#' @return chimerkb tibble of parsed ChimerKB v4
+#' @export
+
+download_chimerkb4 <- function(){
+  urlckb <- paste0("https://www.kobic.re.kr/chimerdb_mirror/downloads?name=ChimerKB4.xlsx")
+  tempf <- tempfile()
+  utils::download.file(urlckb, tempf)
+  chimerkb4 <- readxl::read_xlsx(tempf, sheet = 1)
+  return(chimerkb4)
+}
+
+#' find ChimerKB data in user data
+#' @param input_df data.frame with chrom1, start1, end1, symbol1,
+#'   chrom2, start2, end2, symbol2, sampleID, colour columns
+#' @return output_df rows of input_df where both fusion partners
+#'   were found in ChimerKB4
+#' @export
+
+findin_chimerkb4 <- function(input_df){
+
+  ##DL ChimerKB4
+  chimerkb4 <- download_chimerkb4()
+
+  ##unique sets of genes
+  chimerkb4_uni_genes <- unique(c(unlist(chimerkb4$H_gene),
+                                  unlist(chimerkb4$T_gene)))
+  input_df_uni_genes <- unique(c(input_df$symbol1,
+                                  input_df$symbol2))
+  chimerkb4_idf_genes <- chimerkb4_uni_genes[chimerkb4_uni_genes %in% input_df_uni_genes]
+
+  ##create test set of chimerkb4
+  chimerkb4_test <- chimerkb4[chimerkb4$H_gene %in% chimerkb4_idf_genes & chimerkb4$H_gene %in% chimerkb4_idf_genes,]
+
+  ##find lines in input_df supporting pairs in chimerkb4_test
+  nn <- lapply(1:dim(input_df)[1], function(f){
+    f <- input_df[f,]
+    if(!is.na(f["symbol1"]) & !is.na(f["symbol2"])){
+      if(f["symbol1"] %in% chimerkb4_test$H_gene){
+        ct <- dplyr::filter(.data = chimerkb4_test, H_gene %in% f["symbol1"])
+        if(f["symbol2"] == ct$T_gene){
+          return(f)
+        }
+      }
+      if(f["symbol2"] %in% chimerkb4_test$H_gene){
+        ct <- dplyr::filter(.data = chimerkb4_test, H_gene %in% f["symbol2"])
+        if(f["symbol1"] == ct$T_gene){
+          return(f)
+        }
+      }
+    }
+  })
+
+  output_df <- do.call(rbind, nn[lengths(nn)!=0])
+
+  return(output_df)
 }
