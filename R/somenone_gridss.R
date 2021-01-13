@@ -324,6 +324,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
                          side = "outside",
                          col = labels_o$colour,
                          line_col = labels_o$colour)
+    readr::write_tsv(chim_df, file = paste0(output_path, ".ChimerKB_v4.tsv"))
   } else {
     if(dim(region_1)[1] < 20) {
       circlize::circos.genomicLabels(labels_o,
