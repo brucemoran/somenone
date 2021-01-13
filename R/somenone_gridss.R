@@ -281,33 +281,18 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 plot_circos_sv <- function(input_df, output_path, cytoband){
 
   ##circlize requires 'chr' label on chroms
-  input_df[,1] <- paste0("chr", input_df[,1])
-  input_df[,5] <- paste0("chr", input_df[,5])
+  plot_df_list <- parse_input_df(input_df)
 
-  ##test all chrs are in each set of regions
-  region_1 <- data.frame(chr = input_df[,"chrom1"],
-                      start = input_df[,"start1"],
-                      end = input_df[,"end1"])
-  region_2 <- data.frame(region = input_df[,"chrom2"],
-                      start = input_df[,"start2"],
-                      end = input_df[,"end2"])
-  region_1_in <- region_1[,1] %in% cytoband[,1]
-  region_2_in <- region_2[,1] %in% cytoband[,1]
-  region_1 <- region_1[region_1_in & region_2_in,]
-  region_2 <- region_2[region_1_in & region_2_in,]
-  region_c <- input_df[region_1_in & region_2_in, "colour"]
-  log10quals <- log10(input_df[region_1_in & region_2_in, "qualscore"])
-  labels_o1 <- input_df[region_1_in & region_2_in, c("chrom1", "start1", "end1", "symbol1", "colour")]
-  labels_o2 <- input_df[region_1_in & region_2_in, c("chrom2", "start2", "end2", "symbol2", "colour")]
-  colnames(labels_o1) <- colnames(labels_o2) <- c("chr1", "start", "end", "symbol", "colour")
-  labels_o <- rbind(labels_o1, labels_o2)
-  labels_o20 <- rbind(labels_o1[1:20,], labels_o2[1:20,])
+  labels_o20 <- rbind(plot_df_list[["labels_o1"]][1:20,], plot_df_list[["labels_o2"]][1:20,])
 
   ##cChimerKBv4
   chim_df <- findin_chimerkb4(input_df)
 
   ##circize plot
   ##colours per-sample
+  if(!is.null(chim_df)){
+    output_path <- paste0(output_path, ".ChimerKB_V4")
+  }
   grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
 
   ##initialise blank ideogram
@@ -315,23 +300,22 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
 
   ##labels on outer track if enough space...
   if(!is.null(chim_df)){
-    labels_o1 <- chim_df[, c("chrom1", "start1", "end1", "symbol1", "colour")]
-    labels_o2 <- chim_df[, c("chrom2", "start2", "end2", "symbol2", "colour")]
-    colnames(labels_o1) <- colnames(labels_o2) <- c("chr", "start", "end", "symbol", "colour")
-    labels_o <- rbind(labels_o1, labels_o2)
-    circlize::circos.genomicLabels(labels_o,
+    chim_df_list <- parse_input_df(chim_df)
+    circlize::circos.genomicLabels(chim_df_list[["labels_o"]],
                          labels.column = "symbol",
                          side = "outside",
-                         col = labels_o$colour,
-                         line_col = labels_o$colour)
+                         col = chim_df_list[["labels_o"]]$colour,
+                         line_col = chim_df_list[["labels_o"]]$colour)
+
     readr::write_tsv(chim_df, file = paste0(output_path, ".ChimerKB_v4.tsv"))
+
   } else {
     if(dim(region_1)[1] < 20) {
-      circlize::circos.genomicLabels(labels_o,
+      circlize::circos.genomicLabels(plot_df_list[["labels_o"]],
                            labels.column = "symbol",
                            side = "outside",
-                           col = labels_o$colour,
-                           line_col = labels_o$colour)
+                           col = plot_df_list[["labels_o"]]$colour,
+                           line_col = plot_df_list[["labels_o"]]$colour)
     } else {
       ##top 20 best by qualscore
       circlize::circos.genomicLabels(labels_o20,
@@ -346,10 +330,18 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
   circlize::circos.genomicIdeogram(cytoband)
 
   ##links
-  circlize::circos.genomicLink(region1 = region_1,
-                               region2 = region_2,
-                               col = region_c,
-                               lwd = log10quals/1.3)
+  circlize::circos.genomicLink(region1 = plot_df_list[["region_1"]],
+                               region2 = plot_df_list[["region_2"]],
+                               col = plot_df_list[["region_c"]],
+                               lwd = plot_df_list[["log10quals"]]/1.8)
+
+  if(!is.null(chim_df)){
+    circlize::circos.genomicLink(region1 = chim_df_list[["region_1"]],
+                                region2 = chim_df_list[["region_2"]],
+                                col = "#00000080",
+                                lwd = 10)
+  }
+
   ##legend
   nms <- gsub(",", ", ", unique(names(region_c)))
   colz <- unique(region_c)
@@ -422,4 +414,45 @@ findin_chimerkb4 <- function(input_df){
   output_df <- do.call(rbind, nn[lengths(nn)!=0])
 
   return(output_df)
+}
+
+#' find ChimerKB data in user data
+#' @param input_df data.frame with chrom1, start1, end1, symbol1,
+#'   chrom2, start2, end2, symbol2, qualscore, sampleID, colour columns
+#' @return plot_input_df_list list with elements input_df (as per input), region1, region2, region_c, log10quals, labels_o1, labels_o2, labels_o
+#' @export
+
+parse_input_df <- function(input_df){
+
+  if(length(grep("chr", input_df$chrom1[1])) == 0){
+    input_df[,1] <- paste0("chr", input_df[,1])
+    input_df[,5] <- paste0("chr", input_df[,5])
+  }
+
+  ##test all chrs are in each set of regions
+  region_1 <- data.frame(chr = input_df[,"chrom1"],
+                      start = input_df[,"start1"],
+                      end = input_df[,"end1"])
+  region_2 <- data.frame(region = input_df[,"chrom2"],
+                      start = input_df[,"start2"],
+                      end = input_df[,"end2"])
+  region_1_in <- region_1[,1] %in% cytoband[,1]
+  region_2_in <- region_2[,1] %in% cytoband[,1]
+  region_1 <- region_1[region_1_in & region_2_in,]
+  region_2 <- region_2[region_1_in & region_2_in,]
+  region_c <- input_df[region_1_in & region_2_in, "colour"]
+  log10quals <- log10(input_df[region_1_in & region_2_in, "qualscore"])
+  labels_o1 <- input_df[region_1_in & region_2_in, c("chrom1", "start1", "end1", "symbol1", "colour")]
+  labels_o2 <- input_df[region_1_in & region_2_in, c("chrom2", "start2", "end2", "symbol2", "colour")]
+  colnames(labels_o1) <- colnames(labels_o2) <- c("chr1", "start", "end", "symbol", "colour")
+  labels_o <- rbind(labels_o1, labels_o2)
+
+  return(list(input_df = input_df,
+              region_1 = region_1,
+              region_2 = region_2,
+              region_c = region_c,
+              log10quals = log10quals,
+              labels_o1 = labels_o1,
+              labels_o2 = labels_o2,
+              labels_o = labels_o))
 }
