@@ -170,6 +170,7 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
   if(anno == "ENS"){
     print("Annotating Ensembl genes")
     gr_anno <- anno_ens_cna(gr, which_genome)
+
     ##rename S4Vectors::mcols
     names(S4Vectors::mcols(gr_anno)) <- c(names(S4Vectors::mcols(gr_anno))[1:9], "Total_Copy_Number", "Minor_Copy_Number", gene_symbols)
     readr::write_tsv(as.data.frame(gr_anno), file = paste0(sampleID, ".facets.CNA.ENS.tsv"))
@@ -225,6 +226,7 @@ anno_ens_cna <- function(gr, which_genome){
       gr$SYMBOLs[x] <- length(hitsx)-1;
     }
 
+    colnames(S4Vectors::mcols(gr))[colnames(S4Vectors::mcols(gr)) %in% c("SYMBOL", "SYMBOLs")] <- gene_symbols
     return(gr)
 }
 
@@ -780,6 +782,7 @@ summarise_master <- function(cna_master_anno_gr){
 
   ##create table output
   genesaf <- unlist(lapply(genes_affected_list, function(f){paste(sort(f), collapse = ",")}))
+  genesaf <- gsub(",NA", "", gsub("NA,", "", genesaf))
 
   summ_tb <- tibble::tibble(sampleIDs = unique(cna_master_anno_tb$sampleIDs),
                             tcn_summary = unlist(lapply(tcn_summary_list, function(f){paste(names(f), collapse = ";")})),
