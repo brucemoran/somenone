@@ -275,13 +275,14 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 #'   chrom2, start2, end2, symbol2, sampleID, colour columns
 #' @param output_path path to where PDF file with output plot is written
 #'    N.B. two pages, one with Circos plot and one with legend
+#' @param cytoband internal file downloaded in prep_plot_circos_sv
 #' @return none, prints plot to file
 #' @export
 
 plot_circos_sv <- function(input_df, output_path, cytoband){
 
   ##circlize requires 'chr' label on chroms
-  plot_df_list <- parse_input_df(input_df)
+  plot_df_list <- parse_input_df(input_df, cytoband)
 
   labels_o20 <- rbind(plot_df_list[["labels_o1"]][1:20,], plot_df_list[["labels_o2"]][1:20,])
 
@@ -300,7 +301,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
 
   ##labels on outer track if enough space...
   if(!is.null(chim_df)){
-    chim_df_list <- parse_input_df(chim_df)
+    chim_df_list <- parse_input_df(chim_df, cytoband)
     circlize::circos.genomicLabels(chim_df_list[["labels_o"]],
                          labels.column = "symbol",
                          side = "outside",
@@ -419,10 +420,11 @@ findin_chimerkb4 <- function(input_df){
 #' find ChimerKB data in user data
 #' @param input_df data.frame with chrom1, start1, end1, symbol1,
 #'   chrom2, start2, end2, symbol2, qualscore, sampleID, colour columns
+#' @param cytoband internal file downloaded in prep_plot_circos_sv
 #' @return plot_input_df_list list with elements input_df (as per input), region1, region2, region_c, log10quals, labels_o1, labels_o2, labels_o
 #' @export
 
-parse_input_df <- function(input_df){
+parse_input_df <- function(input_df, cytoband){
 
   if(length(grep("chr", input_df$chrom1[1])) == 0){
     input_df[,1] <- paste0("chr", input_df[,1])
