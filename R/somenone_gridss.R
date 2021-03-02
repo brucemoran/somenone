@@ -94,7 +94,7 @@ gridss_parse_multi_vcf <- function(vcf, germline_id, which_genome = NULL){
   bedpe_rb_rec <- dplyr::mutate(bedpe_rb_rec, num_rows = base::sum(dplyr::n()))
   bedpe_rb_rec <- dplyr::filter(bedpe_rb_rec, num_rows > 1)
   bedpe_rb_rec <- dplyr::ungroup(bedpe_rb_rec)
-  bedpe_rb_rec <- dplyr::select(bedpe_rb_rec, -qualscore, -sampleID, -num_rows)
+  bedpe_rb_rec <- dplyr::select(bedpe_rb_rec, -sampleID, -num_rows)
   bedpe_rb_rec <- dplyr::distinct(bedpe_rb_rec)
 
   ##lapply to paste sampleIDs, colour by combinations therein
@@ -310,7 +310,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
     readr::write_tsv(chim_df, file = paste0(output_path, ".ChimerKB_v4.tsv"))
 
   } else {
-    if(dim(region_1)[1] < 20) {
+    if(dim(plot_df_list[["region_1"]])[1] < 20) {
       circlize::circos.genomicLabels(plot_df_list[["labels_o"]],
                            labels.column = "symbol",
                            side = "outside",
@@ -343,8 +343,8 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
   }
 
   ##legend
-  nms <- gsub(",", ", ", unique(names(region_c)))
-  colz <- unique(region_c)
+  nms <- gsub(",", ", ", unique(names(plot_df_list[["region_c"]])))
+  colz <- unique(plot_df_list[["region_c"]])
   lgnd <- ComplexHeatmap::Legend(at = nms,
                                  type = "lines",
                                  legend_gp = grid::gpar(col = colz, lwd = 4),
