@@ -53,7 +53,7 @@ make_pairtree_input <- function(rdata_input, cn_master, cn_pattern, pp_pattern, 
                                       paste(f, collapse = ",")
                                     })
   for(x in 1:length(mut_df_filt$total_reads)){
-    trds <- as.numeric(strsplit(total_reads[x], ",")[[1]])
+    trds <- as.numeric(strsplit(mut_df_filt$total_reads[x], ",")[[1]])
     vrds <- as.numeric(strsplit(mut_df_filt$var_reads[x], ",")[[1]])
     mut_df_filt$total_reads[x] <- paste(trds + vrds, collapse = ",")
   }
@@ -83,7 +83,7 @@ make_pairtree_input <- function(rdata_input, cn_master, cn_pattern, pp_pattern, 
                     clusters = list(),
                     garbage = list())
   pt_json <- rjson::toJSON(json_list)
-  write(pt_json, file = "in_params_fn.json")
+  write(pt_json, file = paste0(tag, ".in_params_fn.json"))
 }
 
 #' Parse CN file and output as list
