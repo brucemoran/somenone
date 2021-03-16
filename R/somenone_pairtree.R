@@ -73,10 +73,11 @@ make_pairtree_input <- function(rdata_input, cn_master, cn_pattern, pp_pattern, 
 
   mut_gr <- gr_master_consensus_all[[2]][names(gr_master_consensus_all[[2]]) %in% mut_df_filt$mut_name]
 
-  mut_cn_to_pyclone(mut_gr = mut_gr,
-                    cn_pattern = cn_pattern,
-                    pp_pattern = pp_pattern,
-                    tag)
+  ##previous use of pyclone-vi
+  # mut_cn_to_pyclone(mut_gr = mut_gr,
+  #                   cn_pattern = cn_pattern,
+  #                   pp_pattern = pp_pattern,
+  #                   tag)
 
   ##blank JSON output for clustervars
   json_list <- list(samples = sampleIDs,
