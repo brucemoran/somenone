@@ -12,6 +12,8 @@ chrom2, start2, end2, symbol2, sampleID, colour columns}
 
 \item{output_path}{path to where PDF file with output plot is written
 N.B. two pages, one with Circos plot and one with legend}
+
+\item{cytoband}{internal file downloaded in prep_plot_circos_sv}
 }
 \value{
 none, prints plot to file

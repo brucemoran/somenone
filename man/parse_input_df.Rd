@@ -4,11 +4,13 @@
 \alias{parse_input_df}
 \title{find ChimerKB data in user data}
 \usage{
-parse_input_df(input_df)
+parse_input_df(input_df, cytoband)
 }
 \arguments{
 \item{input_df}{data.frame with chrom1, start1, end1, symbol1,
 chrom2, start2, end2, symbol2, qualscore, sampleID, colour columns}
+
+\item{cytoband}{internal file downloaded in prep_plot_circos_sv}
 }
 \value{
 plot_input_df_list list with elements input_df (as per input), region1, region2, region_c, log10quals, labels_o1, labels_o2, labels_o
