@@ -63,13 +63,13 @@ make_pairtree_input <- function(rdata_input, cn_master, cn_pattern, pp_pattern, 
   mut_df_filt$var_read_prob <- cn_df
 
   ##write outputs
-  psm <- data.frame(id = mut_df_filt$id,
+  psm <- tibble::tibble(id = mut_df_filt$id,
                     name = mut_df_filt$name,
                     mut_name = as.character(mut_df_filt$mut_name),
                     var_reads = mut_df_filt$var_reads,
                     total_reads = mut_df_filt$total_reads,
                     var_read_prob = mut_df_filt$var_read_prob)
-  readr::write_tsv(psm, file = paste0(tag, ".pairtree.psm"))
+  readr::write_tsv(tibble(psm, file = paste0(tag, ".pairtree.psm"))
 
   mut_gr <- gr_master_consensus_all[[2]][names(gr_master_consensus_all[[2]]) %in% mut_df_filt$mut_name]
 
