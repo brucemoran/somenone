@@ -65,7 +65,7 @@ make_pairtree_input <- function(rdata_input, cn_master, cn_pattern, pp_pattern, 
   ##write outputs
   psm <- data.frame(id = mut_df_filt$id,
                     name = mut_df_filt$name,
-                    mut_name = mut_df_filt$mut_name,
+                    mut_name = as.character(mut_df_filt$mut_name),
                     var_reads = mut_df_filt$var_reads,
                     total_reads = mut_df_filt$total_reads,
                     var_read_prob = mut_df_filt$var_read_prob)
