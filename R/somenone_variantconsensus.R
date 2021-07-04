@@ -412,6 +412,8 @@ at_least_two <- function (var_list, gr_super, tag){
         colnames(vcf_grpms)[colnames(vcf_grpms) == "sampleID"] <- samp
         readr::write_tsv(as.data.frame(vcf_grpms), path = vcf_out)
       } else {
+        file_out <- paste0(samp, ".", tag, ".consensus.tsv")
+        readr::write_tsv(as.data.frame(gr_plot), path = file_out)
         vcf_out <- paste0(names(var_list[[1]]), ".no_vars.", tag, ".pcgr.tsv.vcf")
         readr::write_tsv(data.frame(), path = vcf_out)
       }
