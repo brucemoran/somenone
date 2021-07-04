@@ -108,6 +108,8 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
     print("No variants found in one or more callers, please check and exclude")
     vcf_out <- paste0(names(var_list[[1]]), ".no_vars.impacts.pcgr.tsv.vcf")
     readr::write_tsv(data.frame(), path = vcf_out)
+    file_out <- paste0(names(var_list[[1]]), ".consensus.tsv")
+    readr::write_tsv(data.frame(), path = file_out)
   }
 }
 
