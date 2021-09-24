@@ -15,7 +15,6 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
 
   options(stringAsFactors = FALSE)
 
-
   ##parse VCFs
   ##all should exist in current dir, all output to same dir
   vcf_vec <- dir(pattern = vep_vcf_pattern)
@@ -107,9 +106,9 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
   } else {
     print("No variants found in one or more callers, please check and exclude")
     vcf_out <- paste0(names(var_list[[1]]), ".no_vars.impacts.pcgr.tsv.vcf")
-    readr::write_tsv(data.frame(), path = vcf_out)
+    readr::write_tsv(data.frame(), file = vcf_out)
     file_out <- paste0(names(var_list[[1]]), ".consensus.tsv")
-    readr::write_tsv(data.frame(), path = file_out)
+    readr::write_tsv(data.frame(), file = file_out)
   }
 }
 
@@ -398,7 +397,7 @@ at_least_two <- function (var_list, gr_super, tag){
       if (!length(names(gr_plot)) == 0) {
         file_out <- paste0(samp, ".", tag, ".consensus.tsv")
         vcf_out <- paste0(samp, ".", tag, ".pcgr.tsv.vcf")
-        readr::write_tsv(as.data.frame(gr_plot), path = file_out)
+        readr::write_tsv(as.data.frame(gr_plot), file = file_out)
         vcf_grp <- tibble::as_tibble(as.data.frame(gr_plot))
         vcf_grp <- dplyr::mutate(vcf_grp, r = names(gr_plot))
         vcf_grps <- tidyr::separate(vcf_grp, r, c("#CHROM",
@@ -412,12 +411,12 @@ at_least_two <- function (var_list, gr_super, tag){
         vcf_grpms <- dplyr::select(vcf_grpm, "#CHROM", POS,
             ID, REF, ALT, QUAL, FILTER, INFO, FORMAT, sampleID)
         colnames(vcf_grpms)[colnames(vcf_grpms) == "sampleID"] <- samp
-        readr::write_tsv(as.data.frame(vcf_grpms), path = vcf_out)
+        readr::write_tsv(as.data.frame(vcf_grpms), file = vcf_out)
       } else {
         file_out <- paste0(samp, ".", tag, ".consensus.tsv")
-        readr::write_tsv(as.data.frame(gr_plot), path = file_out)
+        readr::write_tsv(as.data.frame(gr_plot), file = file_out)
         vcf_out <- paste0(names(var_list[[1]]), ".no_vars.", tag, ".pcgr.tsv.vcf")
-        readr::write_tsv(data.frame(), path = vcf_out)
+        readr::write_tsv(data.frame(), file = vcf_out)
       }
       return(gr_plot)
   })
@@ -823,9 +822,9 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   join_chr_kp_gr <- sort(join_chr_all_gr[join_chr_all_gr$samples_n > 1,])
   names(join_chr_kp_gr) <- join_chr_kp_gr$rowname
   adr <- as.data.frame(S4Vectors::mcols(join_chr_kp_gr))
-  readr::write_tsv(adr, path = paste0(tag, ".master_consensus.tsv"))
+  readr::write_tsv(adr, file = paste0(tag, ".master_consensus.tsv"))
   readr::write_tsv(as.data.frame(S4Vectors::mcols(join_chr_all_gr)),
-                  path = paste0(tag, ".master_all.tsv"))
+                  file = paste0(tag, ".master_all.tsv"))
   gr_master_consensus_all <- list(join_chr_kp_gr, join_chr_all_gr)
   save(gr_master_consensus_all, file = paste0(tag, ".master_consensus_all.RData"))
   return(gr_master_consensus_all)
@@ -876,7 +875,7 @@ sub_hgvsp <- function(in_vec){
 #' @return GRanges object of all  of single-letter HGVS protein IDs
 #' @export
 
-gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_order, which_genome) {
+  gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_order, which_genome) {
 
   ##GRanges superset
   gr_super <- somenone::gr_super_set(var_list, name_callers, impacts)
