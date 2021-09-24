@@ -875,7 +875,7 @@ sub_hgvsp <- function(in_vec){
 #' @return GRanges object of all  of single-letter HGVS protein IDs
 #' @export
 
-  gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_order, which_genome) {
+gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_order, which_genome) {
 
   ##GRanges superset
   gr_super <- somenone::gr_super_set(var_list, name_callers, impacts)
@@ -893,7 +893,6 @@ sub_hgvsp <- function(in_vec){
       print("Variants found, plotting...")
         somenone::plot_single(granges = plot_list[[1]], sampleID = names(plot_list), tag = paste0(names(plot_list), ".", taga, ".solo"))
     }
-
   } else {
 
     ##test for empty and rename to exclude those empty
@@ -912,7 +911,10 @@ sub_hgvsp <- function(in_vec){
     names(nz_plot_list) <- nm_vec
 
     ##create a GRanges of shared elements from list
-    if(!is.null(nm_vec)){
+    if(length(nz_plot_list)==0){
+      print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
+
+    } else {
       col_vec <- names(S4Vectors::mcols(nz_plot_list[[1]]))
       ps_vec <- col_vec[1:3]
       dp_vec <- col_vec[4:length(col_vec)]
@@ -937,8 +939,6 @@ sub_hgvsp <- function(in_vec){
         print("Shared variants found, plotting...")
           plot_consensus(master_gr = master_gr_list[[2]], tag = paste0(taga, ".all"),  included_order)
       }
-    } else {
-      print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
     }
   }
   return(list(gr_super, plot_list))
