@@ -98,7 +98,7 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
         })), collapse = "")
 
     ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
-    grsuper_plot_high <- gr_super_alt_plot(var_list = var_list,
+    grsuper_plot_high <- somenone::gr_super_alt_plot(var_list = var_list,
                                            name_callers = two_callers,
                                            impacts = impact,
                                            taga = paste0(tag, ".", impact_str, "_impacts"),
