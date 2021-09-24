@@ -1,0 +1,26 @@
+* using log directory ‘/Users/brucemoran/Google_Drive/scripts/R/packages/somenone/github/somenone.Rcheck’
+* using R version 3.6.3 (2020-02-29)
+* using platform: x86_64-apple-darwin15.6.0 (64-bit)
+* using session charset: UTF-8
+* checking for file ‘somenone/DESCRIPTION’ ... OK
+* checking extension type ... Package
+* this is package ‘somenone’ version ‘0.0.3’
+* package encoding: UTF-8
+* checking package namespace information ... OK
+* checking package dependencies ... ERROR
+Packages suggested but not available:
+  'EnsDb.Hsapiens.v75', 'EnsDb.Hsapiens.v86', 'OmicCircos',
+  'StructuralVariantAnnotation', 'TxDb.Hsapiens.UCSC.hg19.knownGene',
+  'TxDb.Hsapiens.UCSC.hg38.knownGene', 'customProDB', 'facets',
+  'org.Hs.eg.db'
+
+Namespace dependency not required: ‘pctGCdata’
+
+The suggested packages are required for a complete check.
+Checking can be attempted without them by setting the environment
+variable _R_CHECK_FORCE_SUGGESTS_ to a false value.
+
+See section ‘The DESCRIPTION file’ in the ‘Writing R Extensions’
+manual.
+* DONE
+Status: 1 ERROR

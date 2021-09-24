@@ -98,8 +98,8 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
         })), collapse = "")
 
     ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
-    grsuper_plot_high <- gr_super_alt_plot(var_list = var_list,
-                                           name_callers = two_callers,
+    grsuper_plot_high <- somenone::gr_super_alt_plot(var_list,
+                                           two_callers,
                                            impacts = impact,
                                            taga = paste0(tag, ".", impact_str, "_impacts"),
                                            included_order,
@@ -913,33 +913,29 @@ gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_or
     names(nz_plot_list) <- nm_vec
 
     ##create a GRanges of shared elements from list
-    if(!is.null(nm_vec)){
-      col_vec <- names(S4Vectors::mcols(nz_plot_list[[1]]))
-      ps_vec <- col_vec[1:3]
-      dp_vec <- col_vec[4:length(col_vec)]
-      master_gr_list <- master_intersect_snv_grlist(gr_list = nz_plot_list,
-                                                ps_vec = ps_vec,
-                                                dp_vec = dp_vec,
-                                                tag = taga,
-                                                which_genome)
+    col_vec <- names(S4Vectors::mcols(nz_plot_list[[1]]))
+    ps_vec <- col_vec[1:3]
+    dp_vec <- col_vec[4:length(col_vec)]
+    master_gr_list <- master_intersect_snv_grlist(gr_list = nz_plot_list,
+                                              ps_vec = ps_vec,
+                                              dp_vec = dp_vec,
+                                              tag = taga,
+                                              which_genome)
 
-      ##based on elements in nz_plot_list, plot or do not
-      ##shared
-      if(length(master_gr_list[[1]]) == 0){
-        print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
-      } else {
-        print("Shared variants found, plotting...")
-          plot_consensus(master_gr = master_gr_list[[1]], tag = paste0(taga, ".shared"), included_order)
-      }
-      ##all
-      if(length(master_gr_list[[2]]) == 0){
-        print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
-      } else {
-        print("Shared variants found, plotting...")
-          plot_consensus(master_gr = master_gr_list[[2]], tag = paste0(taga, ".all"),  included_order)
-      }
-    } else {
+    ##based on elements in nz_plot_list, plot or do not
+    ##shared
+    if(length(master_gr_list[[1]]) == 0){
       print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
+    } else {
+      print("Shared variants found, plotting...")
+        plot_consensus(master_gr = master_gr_list[[1]], tag = paste0(taga, ".shared"), included_order)
+    }
+    ##all
+    if(length(master_gr_list[[2]]) == 0){
+      print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
+    } else {
+      print("Shared variants found, plotting...")
+        plot_consensus(master_gr = master_gr_list[[2]], tag = paste0(taga, ".all"),  included_order)
     }
   }
   return(list(gr_super, plot_list))

@@ -1,4 +1,5 @@
 #' Write output for pairtree based on mutations in master TSV input
+#'
 #' Format:
 #' id,	name,	var_reads,	total_reads,	var_read_prob
 #' id is sequential s0..sn
@@ -11,9 +12,9 @@
 #'
 #' @param rdata_input is RData from process vcfGra including master_all, and
 #' gr_master_consensus_all
-#' @param cn_master master CNA from fctscon process in somatic_n-of-1 Nextflow pipeline)
+#' @param cn_master master CNA from fctscon process in Nextflow pipeline)
 #' @param cn_pattern pattern matching FACETS input (fit_cncf_jointsegs.tsv)
-#' @param pp_pattern pattern matching FACETS polidy/purity (fit_ploidy_purity.tsv)
+#' @param pp_pattern pattern matching FACETS ploidy/purity (fit_ploidy_purity.tsv)
 #' @param which_genome is GRCh37 or GRCh38
 #' @param tag is string to tag output
 #' @return none, writes a tsv for input to pairtree

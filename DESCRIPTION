@@ -1,7 +1,7 @@
 Package: somenone
 Type: Package
-Title: R functions required by the 'somatic_n-of-1' NextFlow pipeline
-Version: 0.0.2
+Title: R functions required by the somenone NextFlow nf-core pipeline
+Version: 0.0.3
 Author: Bruce Moran
 Maintainer: Bruce Moran <bruce01campus@gmail.com>
 Description: somenone, acronymised from SOM(atic) (E)N(-of-)ONE (deep apologies). Facets, GRIDSS and our own somatic variant consensus calling method are bundled to allow easier and cleaner use in the pipeline.

@@ -7,7 +7,7 @@
 facets_cna_consensus(pattern, dict_file, tag, cgc_bed = NULL)
 }
 \arguments{
-\item{pattern}{string pattern within file names to use for parsing input}
+\item{pattern}{a pattern within file names to use for parsing input}
 
 \item{dict_file}{a dictionary file for the fasta used to align data}
 

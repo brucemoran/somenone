@@ -1,0 +1,23 @@
+Package: somenone
+Type: Package
+Title: R functions required by the somenone NextFlow nf-core pipeline
+Version: 0.0.3
+Author: Bruce Moran
+Maintainer: Bruce Moran <bruce01campus@gmail.com>
+Description: somenone, acronymised from SOM(atic) (E)N(-of-)ONE (deep apologies). Facets, GRIDSS and our own somatic variant consensus calling method are bundled to allow easier and cleaner use in the pipeline.
+License: AGPL-3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Depends: R (>= 3.5.0)
+Suggests: BSgenome.Hsapiens.UCSC.hg19, BSgenome.Hsapiens.UCSC.hg38,
+        BiocGenerics, EnsDb.Hsapiens.v75, EnsDb.Hsapiens.v86,
+        OmicCircos, S4Vectors, StructuralVariantAnnotation,
+        TxDb.Hsapiens.UCSC.hg19.knownGene,
+        TxDb.Hsapiens.UCSC.hg38.knownGene, VariantAnnotation, biomaRt,
+        customProDB, dplyr, ensembldb, facets, pctGCdata, org.Hs.eg.db,
+        pheatmap, readr, stringi, stringr, tibble, tidyr, tidyselect,
+        GenomeInfoDb, GenomicFeatures, GenomicRanges, IRanges, ggplot2,
+        plyr, grDevices, ComplexHeatmap, grid
+NeedsCompilation: no
+Packaged: 2021-08-26 20:14:25 UTC; brucemoran
