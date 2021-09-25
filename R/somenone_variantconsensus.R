@@ -691,12 +691,27 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
     })
   join_chr_all_tb <- tibble::as_tibble(bedr::bedr.join.multiple.region(chr_list))
 
-  ##split back into GRanges
+  ##if two SNV are adjacent, above will join them
+  ##so unjoin them
   print("Joining into single GRanges...")
   join_chr_all_gr_tb <- tidyr::separate(data = join_chr_all_tb,
                                         col =  index,
                                         into = c("seqnames", "start", "end"),
                                         sep = "[:-]")
+
+  not_line <- join_chr_all_tb[!join_chr_all_tb$index %in% c(chr_list[[1]], chr_list[[2]]),]
+
+  for(x in 1:dim(not_line)[1]){
+    splt <- strsplit(unlist(not_line[x]), ":|-")[[1]]
+    seqrange <- seq.int(from = as.numeric(splt[2]), to = as.numeric(splt[3]), by = 1)
+    rangeo <- c()
+    for(x in seq_along(seqrange)){
+      rangeo <- c(rangeo, paste0(splt[1], ":", seqrange[x], "-", seqrange[x+1]))
+    }
+    rangeo <- rangeo[-length(rangeo)]
+    join_chr_all_tb <- join_chr_all_tb %>% add_row(index = rangeo, f[2], f[3], f[4], f[5])
+  }
+
   join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
                                       seqnames,
                                       "ranges" = start,
@@ -762,12 +777,12 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
       colnames(df_master) <- names(gr_ff_df)
 
       ##where gr_ff intersects with the supplied ranges
-      hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 1))
+      hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 0))
 
       ##place 'hits' annotation as per subjectHits
       qh <- hits$queryHits
 
-      df_master[na.omit(hits[qh, 2]),] <- unlist(gr_ff_df[na.omit(hits[qh, 1]),])
+      df_master[hits[qh, 2],] <- unlist(gr_ff_df[hits[qh, 1],])
 
       return(df_master)
     })
@@ -781,7 +796,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   ##need to collapse the duplicated columns into one
   ##include a 'rowname' for unique naming
 
-  ##is mocls prefix in mcols? remove unless also in dp_vec
+  ##is mcols prefix in mcols? remove unless also in dp_vec
   col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% dp_vec
   dp_vecr <- c(dp_vec, "rowname")
   if(length(table(col_dp))==1){
@@ -817,7 +832,11 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   ##which of dp_chk are not NA (use first match for specifying mcols)
   not_isna <- !is.na(dp_tb[, dp_chk])
   dp_cd_tb <- dplyr::bind_rows(lapply(1:dim(dp_tb)[1], function(f){
+    print(f)
     ff <- dp_tb[f, ]
+
+    ##have come across two NAs which give both FALSE
+    if(unique(not_isna[f,]) != FALSE)
     mtch_i <- match(dp_chk[match(TRUE, not_isna[f,])], colnames(dp_tb))
     mtch_tb <- dp_tb[f, mtch_i:(mtch_i+length(dp_vecr)-1)]
     colnames(mtch_tb) <- col_uniq
