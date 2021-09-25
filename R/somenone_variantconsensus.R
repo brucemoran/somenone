@@ -102,7 +102,7 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
                                    impacts = impact,
                                    taga = paste0(tag, ".", impact_str, "_impacts"),
                                    included_order = included_order,
-                                   which_genome = which_genome, "gr_super_alt_plot(gr_super_alt_plot_list$var_list, gr_super_alt_plot_list$name_callers, gr_super_alt_plot_list$impacts, gr_super_alt_plot_list$taga, gr_super_alt_plot_list$included_order, gr_super_alt_plot_list$which_genome)")
+                                   which_genome = which_genome, call = "gr_super_alt_plot(gr_super_alt_plot_list$var_list, gr_super_alt_plot_list$name_callers, gr_super_alt_plot_list$impacts, gr_super_alt_plot_list$taga, gr_super_alt_plot_list$included_order, gr_super_alt_plot_list$which_genome)")
 
     save(gr_super_alt_plot_list,
          file = paste0(paste0(tag, ".", impact_str, "_impacts"), ".gr_super_alt_plot.RData"))
@@ -700,19 +700,20 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   not_line <- join_chr_all_tb[!join_chr_all_tb$index %in% c(chr_list[[1]], chr_list[[2]]),]
 
   for(x in 1:dim(not_line)[1]){
-    splt <- strsplit(unlist(), ":|-")[[1]]
+    nlx <- not_line[x,]
+    splt <- strsplit(unlist(nlx), ":|-")[[1]]
     seqrange <- seq.int(from = as.numeric(splt[2]), to = as.numeric(splt[3]), by = 1)
     rangeo <- c()
-    for(x in seq_along(seqrange)){
-      rangeo <- c(rangeo, paste0(splt[1], ":", seqrange[x], "-", seqrange[x+1]))
+    for(xx in seq_along(seqrange)){
+      rangeo <- c(rangeo, paste0(splt[1], ":", seqrange[xx], "-", seqrange[xx+1]))
     }
     rangeo <- rangeo[-length(rangeo)]
     join_chr_all_tb <- tibble::add_row(.data = join_chr_all_tb,
                                        index = rangeo,
-                                       not_line[x][2],
-                                       not_line[x][3],
-                                       not_line[x][4],
-                                       not_line[x][5])
+                                       nlx[2],
+                                       nlx[3],
+                                       nlx[4],
+                                       nlx[5])
   }
 
   join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
@@ -952,7 +953,7 @@ gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_or
       col_vec <- names(S4Vectors::mcols(nz_plot_list[[1]]))
       ps_vec <- col_vec[1:3]
       dp_vec <- col_vec[4:length(col_vec)]
-      master_gr_list <- master_intersect_snv_grlist(gr_list = nz_plot_list,
+      master_gr_list <- somenone::master_intersect_snv_grlist(gr_list = nz_plot_list,
                                                 ps_vec = ps_vec,
                                                 dp_vec = dp_vec,
                                                 tag = taga,
