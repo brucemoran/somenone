@@ -767,7 +767,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
       ##place 'hits' annotation as per subjectHits
       qh <- hits$queryHits
 
-      df_master[hits[qh, 2],] <- unlist(gr_ff_df[hits[qh, 1],])
+      df_master[na.omit(hits[qh, 2]),] <- unlist(gr_ff_df[na.omit(hits[qh, 1]),])
 
       return(df_master)
     })
