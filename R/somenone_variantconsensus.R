@@ -707,7 +707,8 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
       rangeo <- c(rangeo, paste0(splt[1], ":", seqrange[x], "-", seqrange[x+1]))
     }
     rangeo <- rangeo[-length(rangeo)]
-    join_chr_all_tb <- join_chr_all_tb %>% add_row(index = rangeo, f[2], f[3], f[4], f[5])
+    join_chr_all_tb <- tibble::add_row(.data = join_chr_all_tb,
+                                       index = rangeo, f[2], f[3], f[4], f[5])
   }
 
   join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
