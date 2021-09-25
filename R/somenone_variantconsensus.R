@@ -700,7 +700,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   not_line <- join_chr_all_tb[!join_chr_all_tb$index %in% c(chr_list[[1]], chr_list[[2]]),]
 
   for(x in 1:dim(not_line)[1]){
-    splt <- strsplit(unlist(not_line[x]), ":|-")[[1]]
+    splt <- strsplit(unlist(), ":|-")[[1]]
     seqrange <- seq.int(from = as.numeric(splt[2]), to = as.numeric(splt[3]), by = 1)
     rangeo <- c()
     for(x in seq_along(seqrange)){
@@ -708,7 +708,11 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
     }
     rangeo <- rangeo[-length(rangeo)]
     join_chr_all_tb <- tibble::add_row(.data = join_chr_all_tb,
-                                       index = rangeo, f[2], f[3], f[4], f[5])
+                                       index = rangeo,
+                                       not_line[x][2],
+                                       not_line[x][3],
+                                       not_line[x][4],
+                                       not_line[x][5])
   }
 
   join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
