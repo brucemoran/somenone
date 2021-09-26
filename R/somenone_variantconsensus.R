@@ -691,36 +691,39 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
 
   ##if two SNV are adjacent, above will join them
   ##so unjoin them
+  not_line <- join_chr_all_tb[!join_chr_all_tb$index %in% c(chr_list[[1]], chr_list[[2]]),]
+
+  if(dim(not_line)[1]>0){
+    for(x in 1:dim(not_line)[1]){
+      nlx <- not_line[x,]
+      splt <- strsplit(unlist(nlx), ":|-")[[1]]
+      seqrange <- seq.int(from = as.numeric(splt[2]), to = as.numeric(splt[3]), by = 1)
+      rangeo <- c()
+      for(xx in seq_along(seqrange)){
+        rangeo <- c(rangeo, paste0(splt[1], ":", seqrange[xx], "-", seqrange[xx+1]))
+      }
+      rangeo <- rangeo[-length(rangeo)]
+      join_chr_all_tb <- tibble::add_row(.data = join_chr_all_tb,
+                                         index = rangeo,
+                                         nlx[2],
+                                         nlx[3],
+                                         nlx[4],
+                                         nlx[5])
+    }
+  }
+
   print("Joining into single GRanges...")
   join_chr_all_gr_tb <- tidyr::separate(data = join_chr_all_tb,
                                         col =  index,
                                         into = c("seqnames", "start", "end"),
                                         sep = "[:-]")
 
-  not_line <- join_chr_all_tb[!join_chr_all_tb$index %in% c(chr_list[[1]], chr_list[[2]]),]
-
-  for(x in 1:dim(not_line)[1]){
-    nlx <- not_line[x,]
-    splt <- strsplit(unlist(nlx), ":|-")[[1]]
-    seqrange <- seq.int(from = as.numeric(splt[2]), to = as.numeric(splt[3]), by = 1)
-    rangeo <- c()
-    for(xx in seq_along(seqrange)){
-      rangeo <- c(rangeo, paste0(splt[1], ":", seqrange[xx], "-", seqrange[xx+1]))
-    }
-    rangeo <- rangeo[-length(rangeo)]
-    join_chr_all_tb <- tibble::add_row(.data = join_chr_all_tb,
-                                       index = rangeo,
-                                       nlx[2],
-                                       nlx[3],
-                                       nlx[4],
-                                       nlx[5])
-  }
-
   join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
                                       seqnames,
                                       "ranges" = start,
                                       "samples_n" = n.overlaps,
                                       "sampleIDs" = names)
+
   ##make seqinfo
   ##"'seqinfo' must be NULL, or a Seqinfo object, or a character vector of
   ## seqlevels, or a named numeric vector of sequence lengths"
@@ -836,11 +839,10 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   ##which of dp_chk are not NA (use first match for specifying mcols)
   not_isna <- !is.na(dp_tb[, dp_chk])
   dp_cd_tb <- dplyr::bind_rows(lapply(1:dim(dp_tb)[1], function(f){
-    print(f)
+    # print(f)
     ff <- dp_tb[f, ]
 
     ##have come across two NAs which give both FALSE
-    if(unique(not_isna[f,]) != FALSE)
     mtch_i <- match(dp_chk[match(TRUE, not_isna[f,])], colnames(dp_tb))
     mtch_tb <- dp_tb[f, mtch_i:(mtch_i+length(dp_vecr)-1)]
     colnames(mtch_tb) <- col_uniq
