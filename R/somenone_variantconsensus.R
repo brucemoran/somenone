@@ -606,7 +606,13 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
     ##remove NAs (set to 0)
     plot_af[is.na(plot_af)] <- 0
     plot_af <- sapply(plot_af, as.numeric)
-    rownames(plot_af) <- uniq_labels
+    if(is.null(dim(plot_af))){
+      tt <- t(as.data.frame(plot_af))
+      plot_af <- tt
+      rownames(plot_af) <- uniq_labels
+    } else {
+      rownames(plot_af) <- uniq_labels
+    }
 
     ##order plot based on input set (shared or all)
     if(length(grep("shared", tag)) == 1){
@@ -625,23 +631,35 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
     row_fontsize <- 1
     colz <- grDevices::colorRampPalette(colours)
     ##plotting and whether to use labels, size of labels
-    if(dim(plot_af)[1] < 120){
+    if(is.null(dim(plot_af))){
       row_fonttype = "bold"
-      if(dim(plot_af)[1] < 20){row_fontsize = 12}
-      if(dim(plot_af)[1] < 20){row_fontsize = 8}
-      if(dim(plot_af)[1] < 50){row_fontsize = 6}
-      if(dim(plot_af)[1] > 50 & dim(plot_af)[1] < 100){row_fontsize = 4}
-      if(dim(plot_af)[1] > 100){row_fontsize = 2}
+      row_fontsize = 12
       plot_labels <- rownames(plot_af)
     } else {
-      ###only include rownames that are pathogenic
-      row_fonttype = "bold"
-      plot_labels <- grep(plot_label_pattern, rownames(plot_af), value = TRUE)
-      if(length(plot_labels)[1] < 20){row_fontsize = 12}
-      if(length(plot_labels)[1] < 20){row_fontsize = 8}
-      if(length(plot_labels)[1] < 50){row_fontsize = 6}
-      if(length(plot_labels)[1] > 50 & length(plot_labels)[1] < 100){row_fontsize = 4}
-      if(length(plot_labels)[1] > 100){row_fontsize = 2}
+      if(dim(plot_af)[1] < 120){
+        row_fonttype = "bold"
+        if(dim(plot_af)[1] < 20){row_fontsize = 12}
+        if(dim(plot_af)[1] < 20){row_fontsize = 8}
+        if(dim(plot_af)[1] < 50){row_fontsize = 6}
+        if(dim(plot_af)[1] > 50 & dim(plot_af)[1] < 100){row_fontsize = 4}
+        if(dim(plot_af)[1] > 100){row_fontsize = 2}
+        plot_labels <- rownames(plot_af)
+      } else {
+        ###only include rownames that are pathogenic
+        row_fonttype = "bold"
+        plot_labels <- grep(plot_label_pattern, rownames(plot_af), value = TRUE)
+        if(length(plot_labels)[1] < 20){row_fontsize = 12}
+        if(length(plot_labels)[1] < 20){row_fontsize = 8}
+        if(length(plot_labels)[1] < 50){row_fontsize = 6}
+        if(length(plot_labels)[1] > 50 & length(plot_labels)[1] < 100){row_fontsize = 4}
+        if(length(plot_labels)[1] > 100){row_fontsize = 2}
+      }
+    }
+
+    if(length(plot_af)>2){
+      gaps_col <- c(1:length(included_order))
+    } else {
+      gaps_col <- NULL
     }
 
     grDevices::pdf(paste0(tag, ".pdf"), onefile = F)
@@ -656,7 +674,7 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
        fontsize_row = row_fontsize,
        labels_row = plot_labels,
        border_color = "lightgrey",
-       gaps_col = c(1:length(included_order)))
+       gaps_col = gaps_col)
     grDevices::dev.off()
   }
 }
@@ -967,7 +985,7 @@ gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_or
         print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
       } else {
         print("Shared variants found, plotting...")
-          plot_consensus(master_gr = master_gr_list[[1]], tag = paste0(taga, ".shared"), included_order)
+          somenone::plot_consensus(master_gr = master_gr_list[[1]], tag = paste0(taga, ".shared"), included_order)
       }
       ##all
       if(length(master_gr_list[[2]]) == 0){
