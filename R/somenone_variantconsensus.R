@@ -765,6 +765,8 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
 
   colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
 
+  join_chr_all_gr <- unique(join_chr_all_gr)
+
   ##sample names
   samples <- unique(unlist(lapply(unique(join_chr_all_gr$sampleIDs), function(s){
       stringr::str_split(s, ",")[[1]]
@@ -857,7 +859,8 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   ##which of dp_chk are not NA (use first match for specifying mcols)
   not_isna <- !is.na(dp_tb[, dp_chk])
   dp_cd_tb <- dplyr::bind_rows(lapply(1:dim(dp_tb)[1], function(f){
-    # print(f)
+     print(f)
+
     ff <- dp_tb[f, ]
 
     ##have come across two NAs which give both FALSE
