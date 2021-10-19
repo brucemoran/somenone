@@ -61,7 +61,7 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
                                     CGC_gene = unlist(lapply(as.vector(cgc[,4]), function(f){
                                                         strsplit(f, ";")[[1]][1]
                                                       })))
-    in_list <- as.list(dir(pattern = pattern))
+    in_list <- as.list(dir(pattern = paste0(pattern, "$")))
     out_list <- lapply(in_list, function(f){
       process_in_list(f, which_genome, cgc_gr)
     })
@@ -162,9 +162,9 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
                 ranges = IRanges::IRanges(start = js$start, end = js$end),
                 mcols = js[, c("seg", "num.mark", "nhet", "cnlr.median", "mafR", "segclust", "cnlr.median.clust", "mafR.clust", "cf.em", "tcn.em", "lcn.em")])
 
-  GenomeInfoDb::seqlevels(gr) <- GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "UCSC")
+  GenomeInfoDb::seqlevels(gr) <- GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "NCBI")
   GenomeInfoDb::seqinfo(gr) <- GenomeInfoDb::seqinfo(bsgenome)[GenomeInfoDb::seqlevels(gr)]
-  GenomeInfoDb::seqlevelsStyle(gr) <- "NCBI"
+#  GenomeInfoDb::seqlevelsStyle(gr) <- "NCBI"
 
   ##overlaps
   if(anno == "ENS"){
@@ -579,6 +579,8 @@ master_intersect_cna_grlist <- function(gr_list, ps_vec, which_genome){
     ##return single GRanges
 
   }
+  
+  join_chr_all_gr <- loh_summary(join_chr_all_gr)
   return(join_chr_all_gr)
 }
 
@@ -959,4 +961,37 @@ test_seqinfo <- function(gr, genome = NULL){
     print("Input has seqinfo already")
     return(gr)
   }
+}
+
+#' LOH summary: find LOH in GRanges
+
+#' @param join_chr_all_gr GRanges from master_mcols do.call cbind
+#' @return GRanges gr with LOH_sum,samples
+#' @export
+
+loh_summary <- function(join_chr_all_gr){
+
+  ##find 0 Minor_Copy_Number, create column per sample and overall column
+  ##overall indicates if every position in each sample is 0
+
+  join_chr_all_tb <- tibble::as_tibble(join_chr_all_gr)
+  mcn <- dplyr::select(.data = join_chr_all_tb, tidyselect::contains("Minor_Copy_Number"))
+
+  ##total sums of mcn
+  mut_ret <- function(ro){ sum(na.omit(ro)) }
+  LOH_sum <- unlist(apply(mcn, 1, mut_ret))
+
+  LOH_samples <- apply(mcn, 1, function(f){
+    flist <- lapply(names(f), function(ff){
+      pn <- c()
+      if(!is.na(f[ff]) & as.numeric(f[ff])==0){
+        pn <- c(pn, ff)
+      }
+    })
+    flist[sapply(flist, is.null)] <- NULL
+    paste(flist, collapse=",")
+  })
+
+  S4Vectors::mcols(join_chr_all_gr) <- data.frame(S4Vectors::mcols(join_chr_all_gr), LOH_sum = LOH_sum, LOH_samples = LOH_samples)
+  return(join_chr_all_gr)
 }
