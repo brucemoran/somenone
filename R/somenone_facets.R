@@ -579,7 +579,7 @@ master_intersect_cna_grlist <- function(gr_list, ps_vec, which_genome){
     ##return single GRanges
 
   }
-  
+
   join_chr_all_gr <- loh_summary(join_chr_all_gr)
   return(join_chr_all_gr)
 }
@@ -630,7 +630,7 @@ collapse_gr_list <- function(gr_list, which_genome) {
                      strand = NULL,
                      mcols = join_chr_all_gr_tb[,c("samples_n", "sampleIDs")],
                      seqinfo = GenomicRanges::seqinfo(gr_list[[1]]))
-  join_chr_all_gr <- sortSeqlevels(join_chr_all_gr)
+  join_chr_all_gr <- GenomeInfoDb::sortSeqlevels(join_chr_all_gr)
   join_chr_all_gr <- sort(join_chr_all_gr)
   adr <- as.data.frame(join_chr_all_gr)
   GenomicRanges::width(join_chr_all_gr) <- adr$end - adr$start
