@@ -96,23 +96,25 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
           strsplit(f,"")[[1]][1]
         })), collapse = "")
 
-    ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
-    gr_super_alt_plot_list <- list(var_list = var_list,
-                                   name_callers = two_callers,
-                                   impacts = impact,
-                                   taga = paste0(tag, ".", impact_str, "_impacts"),
-                                   included_order = included_order,
-                                   which_genome = which_genome, call = "gr_super_alt_plot(gr_super_alt_plot_list$var_list, gr_super_alt_plot_list$name_callers, gr_super_alt_plot_list$impacts, gr_super_alt_plot_list$taga, gr_super_alt_plot_list$included_order, gr_super_alt_plot_list$which_genome)")
+    grsuper_plot_out <- somenone::gr_super_alt_plot(var_list = var_list,
+                                                    name_callers = two_callers,
+                                                    impacts = impact,
+                                                    taga = paste0(tag, ".",  impact_str, "_impacts"),
+                                                    included_order,
+                                                    which_genome)
 
-    save(gr_super_alt_plot_list,
-         file = paste0(paste0(tag, ".", impact_str, "_impacts"), ".gr_super_alt_plot.RData"))
+   ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
+   gr_super_plot_out_list <- list(gr_super_plot_out = gr_super_plot_out,
+                                  var_list = var_list,
+                                  name_callers = two_callers,
+                                  impacts = impact,
+                                  taga = paste0(tag, ".", impact_str, "_impacts"),
+                                  included_order = included_order,
+                                  which_genome = which_genome, call = "gr_super_alt_plot(gr_super_alt_plot_list$var_list, gr_super_alt_plot_list$name_callers, gr_super_alt_plot_list$impacts, gr_super_alt_plot_list$taga, gr_super_alt_plot_list$included_order, gr_super_alt_plot_list$which_genome)")
 
-    grsuper_plot_high <- somenone::gr_super_alt_plot(var_list = var_list,
-                                           name_callers = two_callers,
-                                           impacts = impact,
-                                           taga = paste0(tag, ".", impact_str, "_impacts"),
-                                           included_order,
-                                           which_genome)
+   save(gr_super_plot_out_list,
+        file = paste0(paste0(tag, ".", impact_str, "_impacts"), ".gr_super_alt_plot.RData"))
+
   } else {
     print("No variants found in one or more callers, please check and exclude")
     vcf_out <- paste0(names(var_list[[1]]), ".no_vars.impacts.pcgr.tsv.vcf")
@@ -745,10 +747,16 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   ##make seqinfo
   ##"'seqinfo' must be NULL, or a Seqinfo object, or a character vector of
   ## seqlevels, or a named numeric vector of sequence lengths"
+  seqinf <- tryCatch(GenomeInfoDb::fetchExtendedChromInfoFromUCSC(which_genome),
+              error = function(f){
+                GenomeInfoDb::getChromInfoFromUCSC(which_genome)
+              }
+            )
+  
   if(length(grep("4.", sessionInfo()[1]$R.version$version.string))>0){
     seqinf <- GenomeInfoDb::getChromInfoFromUCSC(which_genome)
   } else {
-    seqinf <- GenomeInfoDb::fetchExtendedChromInfoFromUCSC(which_genome)
+    seqinf <-
   }
   seqinf[,1] <- gsub("chr","",seqinf[,1])
   seqinf <- seqinf[grep("_", seqinf[,1], invert = TRUE),c(1,2)]
