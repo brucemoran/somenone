@@ -96,12 +96,12 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
           strsplit(f,"")[[1]][1]
         })), collapse = "")
 
-    grsuper_plot_out <- somenone::gr_super_alt_plot(var_list = var_list,
-                                                    name_callers = two_callers,
-                                                    impacts = impact,
-                                                    taga = paste0(tag, ".",  impact_str, "_impacts"),
-                                                    included_order,
-                                                    which_genome)
+    gr_super_plot_out <- somenone::gr_super_alt_plot(var_list = var_list,
+                                                     name_callers = two_callers,
+                                                     impacts = impact,
+                                                     taga = paste0(tag, ".",  impact_str, "_impacts"),
+                                                     included_order,
+                                                     which_genome)
 
    ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
    gr_super_plot_out_list <- list(gr_super_plot_out = gr_super_plot_out,
