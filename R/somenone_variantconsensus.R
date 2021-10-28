@@ -705,7 +705,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
         })
         bedr::bedr.sort.region(bs)
     })
-  join_chr_all_tb <- tibble::as_tibble(bedr::bedr.join.multiple.region(chr_list))
+  join_chr_all_tb <- tibble::as_tibble(bedr::bedr.join.multiple.region(chr_list, build = which_genome))
 
   ##if two SNV are adjacent, above will join them
   ##so unjoin them
