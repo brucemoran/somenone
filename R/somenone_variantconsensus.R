@@ -711,7 +711,15 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
 
   ##if two SNV are adjacent, above will join them
   ##so unjoin them
-  not_line <- join_chr_all_tb[!join_chr_all_tb$index %in% c(chr_list[[1]], chr_list[[2]]),]
+  ##remove MNVs
+  mnv_index <- unlist(lapply(join_chr_all_tb$index, function(f){
+    splt <- strsplit(unlist(f), ":|-")[[1]]
+    if(as.numeric(splt[3])-as.numeric(splt[2]) != 1){
+      return(f)
+    }
+  }))
+
+  not_line <- join_chr_all_tb[!join_chr_all_tb$index %in% mnv_index,]
 
   if(dim(not_line)[1]>0){
     for(x in 1:dim(not_line)[1]){
