@@ -752,12 +752,12 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
                 GenomeInfoDb::getChromInfoFromUCSC(which_genome)
               }
             )
-  
+
   seqinf[,1] <- gsub("chr","",seqinf[,1])
   seqinf <- seqinf[grep("_", seqinf[,1], invert = TRUE),c(1,2)]
-  seqinf <- Seqinfo(seqnames = seqinf[,1],
-                    seqlengths = seqinf[,2],
-                    genome = which_genome)
+  seqinf <- GenomeInfoDb::Seqinfo(seqnames = seqinf[,1],
+                                  seqlengths = seqinf[,2],
+                                  genome = which_genome)
 
   join_chr_all_gr <- GenomicRanges::GRanges(seqnames = factor(gsub("chr", "", unlist(join_chr_all_gr_tb[,1]))),
                          ranges = IRanges::IRanges(start = as.numeric(unlist(join_chr_all_gr_tb[,2])),
