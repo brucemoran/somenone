@@ -753,11 +753,6 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
               }
             )
   
-  if(length(grep("4.", sessionInfo()[1]$R.version$version.string))>0){
-    seqinf <- GenomeInfoDb::getChromInfoFromUCSC(which_genome)
-  } else {
-    seqinf <-
-  }
   seqinf[,1] <- gsub("chr","",seqinf[,1])
   seqinf <- seqinf[grep("_", seqinf[,1], invert = TRUE),c(1,2)]
   seqinf <- Seqinfo(seqnames = seqinf[,1],
