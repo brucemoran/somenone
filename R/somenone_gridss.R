@@ -12,11 +12,9 @@
 gridss_parse_plot <- function(vcf, dict_file, germline_id, which_genome = NULL, output_path = NULL){
 
   ##set genome as hg19 unless spec'd
-  if (is.null(which_genome)){
-    if(unlist(lapply(c("19", "37"), function(f){grep(f, dict_file)})) > 0){
+  if(is.null(which_genome)){
     which_genome <- "hg19"
-    }
-    else{
+    if(length(grep("38", dict_file))==1) {
       which_genome <- "hg38"
     }
   }
@@ -257,10 +255,10 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
     tempf <- tempfile()
     if(which_genome == "hg19"){
       utils::download.file(url19, tempf)
-      cytoband <- utils::read.table(tempf)
+      cytoband <- readr::read_tsv(tempf, col_names = FALSE)
     } else {
       utils::download.file(url38, tempf)
-      cytoband <- utils::read.table(tempf)
+      cytoband <- readr::read_tsv(tempf, col_names = FALSE)
     }
 
     plot_circos_sv(input_df_tr_1, output_path, cytoband)
@@ -332,7 +330,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
   }
 
   ##cytoband data
-  circlize::circos.genomicIdeogram(cytoband)
+  circlize::circos.genomicIdeogram(as.data.frame(cytoband))
 
   ##links
   circlize::circos.genomicLink(region1 = plot_df_list[["region_1"]],
@@ -370,7 +368,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
 download_chimerkb4 <- function(){
   urlckb <- "https://www.kobic.re.kr/chimerdb_mirror/downloads?name=ChimerKB4.xlsx"
   tempf <- tempfile()
-  utils::download.file(urlckb, tempf)
+  utils::download.file(urlckb, tempf, method = "curl")
   chimerkb4 <- readxl::read_xlsx(tempf, sheet = 1)
   return(chimerkb4)
 }
@@ -442,8 +440,8 @@ parse_input_df <- function(input_df, cytoband){
   region_2 <- data.frame(region = input_df[,"chrom2"],
                       start = input_df[,"start2"],
                       end = input_df[,"end2"])
-  region_1_in <- region_1[,1] %in% cytoband[,1]
-  region_2_in <- region_2[,1] %in% cytoband[,1]
+  region_1_in <- region_1[,1] %in% unlist(cytoband[,1])
+  region_2_in <- region_2[,1] %in% unlist(cytoband[,1])
   region_1 <- region_1[region_1_in & region_2_in,]
   region_2 <- region_2[region_1_in & region_2_in,]
   region_c <- input_df[region_1_in & region_2_in, "colour"]
