@@ -340,7 +340,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
   })
 
   ##blank track
-  circos.trackPlotRegion(ylim = c(0, 0.001), track.height = circlize::mm_h(2), bg.lty = 0)
+  circos.trackPlotRegion(ylim = c(0, 0.01), track.height = circlize::mm_h(4), bg.lty = 0)
 
   ##links
   circlize::circos.genomicLink(region1 = plot_df_list[["region_1"]],
