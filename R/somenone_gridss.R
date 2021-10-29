@@ -231,7 +231,7 @@ gridss_annotate_gr <- function(gr, which_genome) {
 prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 
   if(!is.data.frame(input_df)){
-    print("Require data.frame input with chromsomes as factors")
+    print("Require data.frame input with chromosomes as factors")
   } else {
 
     ##write output table
@@ -299,7 +299,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
   grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
 
   ##initialise blank ideogram
-  circlize::circos.initializeWithIdeogram(plotType = NULL)
+  circlize::circos.initializeWithIdeogram(species = "hg38")
 
   ##labels on outer track if enough space...
   if(!is.null(chim_df)){

@@ -4,7 +4,7 @@
 \alias{plot_circos_sv}
 \title{OmicCircos plotting from data.frame from GRIDSS bedpe}
 \usage{
-plot_circos_sv(input_df, output_path, cytoband)
+plot_circos_sv(input_df, output_path, cytoband, chimerkb4 = FALSE)
 }
 \arguments{
 \item{input_df}{data.frame with chrom1, start1, end1, symbol1,
@@ -14,6 +14,8 @@ chrom2, start2, end2, symbol2, sampleID, colour columns}
 N.B. two pages, one with Circos plot and one with legend}
 
 \item{cytoband}{internal file downloaded in prep_plot_circos_sv}
+
+\item{chimerkb4}{boolean to specify using chimerkb4 data}
 }
 \value{
 none, prints plot to file
