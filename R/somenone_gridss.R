@@ -359,7 +359,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
   }
 
   ##legend
-  nms <- gsub(",", ", ", unique(plot_df_list[["input_df"]][,"sampleID"])))
+  nms <- gsub(",", ", ", unique(plot_df_list[["input_df"]][,"sampleID"]))
   colz <- unique(plot_df_list[["region_c"]])
   lgnd <- ComplexHeatmap::Legend(at = nms,
                                  type = "lines",
