@@ -259,7 +259,7 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
       utils::download.file(url19, tempf)
       cytoband <- utils::read.table(tempf)
     } else {
-      utils::download.file(url19, tempf)
+      utils::download.file(url38, tempf)
       cytoband <- utils::read.table(tempf)
     }
 
@@ -276,10 +276,11 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 #' @param output_path path to where PDF file with output plot is written
 #'    N.B. two pages, one with Circos plot and one with legend
 #' @param cytoband internal file downloaded in prep_plot_circos_sv
+#' @param chimerkb4 boolean to specify using chimerkb4 data
 #' @return none, prints plot to file
 #' @export
 
-plot_circos_sv <- function(input_df, output_path, cytoband){
+plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
 
   ##circlize requires 'chr' label on chroms
   plot_df_list <- parse_input_df(input_df, cytoband)
@@ -287,7 +288,10 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
   labels_o20 <- rbind(plot_df_list[["labels_o1"]][1:20,], plot_df_list[["labels_o2"]][1:20,])
 
   ##cChimerKBv4
-  chim_df <- findin_chimerkb4(input_df)
+  chim_df <- NULL
+  if(chimerkb4 == TRUE){
+    chim_df <- findin_chimerkb4(input_df)
+  }
 
   ##circize plot
   ##colours per-sample
@@ -364,7 +368,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband){
 #' @export
 
 download_chimerkb4 <- function(){
-  urlckb <- paste0("https://www.kobic.re.kr/chimerdb_mirror/downloads?name=ChimerKB4.xlsx")
+  urlckb <- "https://www.kobic.re.kr/chimerdb_mirror/downloads?name=ChimerKB4.xlsx"
   tempf <- tempfile()
   utils::download.file(urlckb, tempf)
   chimerkb4 <- readxl::read_xlsx(tempf, sheet = 1)
