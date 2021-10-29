@@ -299,9 +299,12 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
   grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
 
   ##initialise blank ideogram
-  circlize::circos.initializeWithIdeogram(species = "hg38")
+  grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
+  circlize::circos.clear()
+  circlize::circos.par("start.degree" = 90)
+  circlize::circos.initializeWithIdeogram(plotType=c("axis", "labels"))
 
-  ##labels on outer track if enough space...
+  ##gene labels
   if(!is.null(chim_df)){
     chim_df_list <- parse_input_df(chim_df, cytoband)
     circlize::circos.genomicLabels(chim_df_list[["labels_o"]],
@@ -322,31 +325,41 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
     } else {
       ##top 20 best by qualscore
       circlize::circos.genomicLabels(labels_o20,
-                           labels.column = "symbol",
-                           side = "outside",
-                           col = labels_o20$colour,
-                           line_col = labels_o20$colour)
+                                     labels.column = "symbol",
+                                     side = "outside",
+                                     col = labels_o20$colour,
+                                     line_col = labels_o20$colour,
+                                     cex=0.3)
     }
   }
 
-  ##cytoband data
-  circlize::circos.genomicIdeogram(as.data.frame(cytoband))
+  circos.genomicIdeogram(species="hg38")
+
+  circlize::circos.trackPlotRegion(track.index = 4, bg.lwd = 0.1, bg.lty = 0, panel.fun = function(x, y) {
+    circlize::circos.genomicAxis(h = "bottom", direction = "inside", labels.cex = 0.2)
+  })
+
+
+  ##blank track
+  circos.trackPlotRegion(ylim = c(0, 0.001), track.height = circlize::mm_h(2), bg.lty = 0)
 
   ##links
   circlize::circos.genomicLink(region1 = plot_df_list[["region_1"]],
                                region2 = plot_df_list[["region_2"]],
                                col = plot_df_list[["region_c"]],
-                               lwd = plot_df_list[["log10quals"]]/1.8)
+                               lwd = plot_df_list[["log10quals"]]/1.8,
+                               h.ratio = 0.3)
 
   if(!is.null(chim_df)){
-    circlize::circos.genomicLink(region1 = chim_df_list[["region_1"]],
-                                region2 = chim_df_list[["region_2"]],
-                                col = "#00000080",
-                                lwd = 10)
+   circlize::circos.genomicLink(region1 = chim_df_list[["region_1"]],
+                               region2 = chim_df_list[["region_2"]],
+                               col = "#00000080",
+                               lwd = 10,
+                               h.ratio = 0.3)
   }
 
   ##legend
-  nms <- gsub(",", ", ", unique(names(plot_df_list[["region_c"]])))
+  nms <- gsub(",", ", ", unique(plot_df_list[["input_df"]][,"sampleID"])))
   colz <- unique(plot_df_list[["region_c"]])
   lgnd <- ComplexHeatmap::Legend(at = nms,
                                  type = "lines",
@@ -359,6 +372,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
   grid::grid.draw(lgnd)
 
   grDevices::dev.off()
+
 }
 
 #' Download and parse ChimerKB v4 for annotating known fusions
