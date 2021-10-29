@@ -339,7 +339,6 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
     circlize::circos.genomicAxis(h = "bottom", direction = "inside", labels.cex = 0.2)
   })
 
-
   ##blank track
   circos.trackPlotRegion(ylim = c(0, 0.001), track.height = circlize::mm_h(2), bg.lty = 0)
 
@@ -359,6 +358,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
   }
 
   ##legend
+  print("Making legend...")
   nms <- gsub(",", ", ", unique(plot_df_list[["input_df"]][,"sampleID"]))
   colz <- unique(plot_df_list[["region_c"]])
   lgnd <- ComplexHeatmap::Legend(at = nms,
