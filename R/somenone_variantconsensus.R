@@ -692,6 +692,8 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
 
 master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_genome){
 
+  options(scipen=999)
+  
   ##check gr is A GRanges object
   if(!as.vector(class(gr_list)) %in% c("GRangesList", "list")){
     stop("Input \'gr_list\' is not a GRangesList nor list object, retry")
