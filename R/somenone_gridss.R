@@ -261,9 +261,9 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
       cytoband <- readr::read_tsv(tempf, col_names = FALSE)
     }
 
-    plot_circos_sv(input_df_tr_1, output_path, cytoband)
+    plot_circos_sv(input_df_tr_1, output_path, which_genome, cytoband)
     if(!is.null(input_df_tr_2)){
-      plot_circos_sv(input_df_tr_2, paste0(output_path, ".diff_chrs"), cytoband)
+      plot_circos_sv(input_df_tr_2, paste0(output_path, ".diff_chrs"), which_genome, cytoband)
     }
   }
 }
@@ -273,12 +273,13 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 #'   chrom2, start2, end2, symbol2, sampleID, colour columns
 #' @param output_path path to where PDF file with output plot is written
 #'    N.B. two pages, one with Circos plot and one with legend
+#' @param which_genome, genome assembly used ("hg19", "hg38")
 #' @param cytoband internal file downloaded in prep_plot_circos_sv
 #' @param chimerkb4 boolean to specify using chimerkb4 data
 #' @return none, prints plot to file
 #' @export
 
-plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
+plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimerkb4 = FALSE){
 
   ##circlize requires 'chr' label on chroms
   plot_df_list <- parse_input_df(input_df, cytoband)
@@ -333,7 +334,7 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
     }
   }
 
-  circlize::circos.genomicIdeogram(species="hg38")
+  circlize::circos.genomicIdeogram(species = which_genome)
 
   circlize::circos.trackPlotRegion(track.index = 4, bg.lwd = 0.1, bg.lty = 0, panel.fun = function(x, y) {
     circlize::circos.genomicAxis(h = "bottom", direction = "inside", labels.cex = 0.2)
