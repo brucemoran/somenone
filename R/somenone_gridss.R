@@ -333,14 +333,14 @@ plot_circos_sv <- function(input_df, output_path, cytoband, chimerkb4 = FALSE){
     }
   }
 
-  circos.genomicIdeogram(species="hg38")
+  circlize::circos.genomicIdeogram(species="hg38")
 
   circlize::circos.trackPlotRegion(track.index = 4, bg.lwd = 0.1, bg.lty = 0, panel.fun = function(x, y) {
     circlize::circos.genomicAxis(h = "bottom", direction = "inside", labels.cex = 0.2)
   })
 
   ##blank track
-  circos.trackPlotRegion(ylim = c(0, 0.01), track.height = circlize::mm_h(4), bg.lty = 0)
+  circlize::circos.trackPlotRegion(ylim = c(0, 0.01), track.height = circlize::mm_h(4), bg.lty = 0)
 
   ##links
   circlize::circos.genomicLink(region1 = plot_df_list[["region_1"]],
