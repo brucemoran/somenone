@@ -341,7 +341,7 @@ plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimer
   })
 
   ##blank track
-  circlize::circos.trackPlotRegion(ylim = c(0, 0.01), track.height = circlize::mm_h(4), bg.lty = 0)
+  circlize::circos.trackPlotRegion(ylim = c(0, 0.01), track.height = sum(circlize::circos.par$cell.padding), bg.lty = 0)
 
   ##links
   circlize::circos.genomicLink(region1 = plot_df_list[["region_1"]],
