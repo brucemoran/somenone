@@ -300,7 +300,6 @@ plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimer
   grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
 
   ##initialise blank ideogram
-  grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
   circlize::circos.clear()
   circlize::circos.par("start.degree" = 90)
   circlize::circos.initializeWithIdeogram(plotType=c("axis", "labels"))
@@ -341,7 +340,7 @@ plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimer
   })
 
   ##blank track
-  circlize::circos.trackPlotRegion(ylim = c(0, 0.01), track.height = sum(circlize::circos.par$cell.padding), bg.lty = 0)
+  circlize::circos.trackPlotRegion(ylim = c(0, 0.01), bg.lty = 0)
 
   ##links
   circlize::circos.genomicLink(region1 = plot_df_list[["region_1"]],
