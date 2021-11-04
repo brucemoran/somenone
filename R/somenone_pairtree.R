@@ -38,8 +38,6 @@ make_pairtree_input <- function(rdata_input, cn_master, cn_pattern, pp_pattern, 
   mut_df_filt <- mut_df[mut_df$samples_n == length(sampleIDs),]
 
   ##required columns
-  mut_df_filt$id <- paste0("s", 0:(dim(mut_df_filt)[1]-1))
-  mut_df_filt$name <- paste0("S_", 0:(dim(mut_df_filt)[1]-1))
   mut_df_filt$mut_name <- rownames(mut_df_filt)
   mut_df_filt$var_reads <- apply(dplyr::select(.data = mut_df_filt,
                                          tidyselect::ends_with("AD.1")),
@@ -62,6 +60,14 @@ make_pairtree_input <- function(rdata_input, cn_master, cn_pattern, pp_pattern, 
   ##parse out CN files and makke correct format
   cn_df <- cna_master_muts(cn_master, mut_df_filt)
   mut_df_filt$var_read_prob <- cn_df
+
+  ##remove any Infs which cause issues
+  ninf <- unique(grep("Inf", cn_df))
+  mut_df_filt <- mut_df_filt[-ninf,]
+
+  ##now add sequential names
+  mut_df_filt$id <- paste0("s", 0:(dim(mut_df_filt)[1]-1))
+  mut_df_filt$name <- paste0("S_", 0:(dim(mut_df_filt)[1]-1))
 
   ##write outputs
   psm <- tibble::tibble(id = mut_df_filt$id,
