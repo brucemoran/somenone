@@ -688,71 +688,82 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
 #' @param tag to apply to output file (master)
 #' @param which_genome hg19 or hg38
 #' @return list of GRanges object of shared intersecting, and all mutations with ps_vec, dp_vec columns, and original rownames (should be unique therefore)
+#' @importFrom magrittr '%>%'
 #' @export
 
 master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_genome){
 
   options(scipen=999)
-  
+
   ##check gr is A GRanges object
   if(!as.vector(class(gr_list)) %in% c("GRangesList", "list")){
     stop("Input \'gr_list\' is not a GRangesList nor list object, retry")
   }
 
-  ##use bedr::bedr.join.multiple.region to make a complete set and samples
-  ##lapply over gr_list which creates character vector list in "chrX:1-100" format
-  ##thinks it's 0-based so add 1...
-  chr_list <- lapply(gr_list, function(f){
-      bs <- apply(as.data.frame(unique(f)), 1, function(ff){
-          ff <- unlist(ff)
-          paste0("chr", ff[1], ":", as.numeric(gsub(" ", "", ff[2])), "-", as.numeric(gsub(" ", "", ff[3]))+1)
-        })
-        bedr::bedr.sort.region(bs)
+  ##decompose gr_list into a list of variants found
+  tb_list <- lapply(gr_list, function(f){
+      tf <- tibble::as_tibble(f)[1:5] %>%
+            dplyr::mutate(across(where(is.factor), as.character)) %>%
+            dplyr::rowwise() %>%
+            dplyr::mutate(variant = paste(c(seqnames, start, end), collapse="_")) %>%
+            dplyr::ungroup()
     })
-  join_chr_all_tb <- tibble::as_tibble(bedr::bedr.join.multiple.region(chr_list, build = which_genome))
 
-  ##if two SNV are adjacent, above will join them
-  ##so unjoin them
-  ##remove MNVs
-  mnv_index <- unlist(lapply(join_chr_all_tb$index, function(f){
-    splt <- strsplit(unlist(f), ":|-")[[1]]
-    if(as.numeric(splt[3])-as.numeric(splt[2]) != 1){
-      return(f)
-    }
-  }))
-
-  not_line <- join_chr_all_tb[!join_chr_all_tb$index %in% mnv_index,]
-
-  if(dim(not_line)[1]>0){
-    for(x in 1:dim(not_line)[1]){
-      nlx <- not_line[x,]
-      splt <- strsplit(unlist(nlx), ":|-")[[1]]
-      seqrange <- seq.int(from = as.numeric(splt[2]), to = as.numeric(splt[3]), by = 1)
-      rangeo <- c()
-      for(xx in seq_along(seqrange)){
-        rangeo <- c(rangeo, paste0(splt[1], ":", seqrange[xx], "-", seqrange[xx+1]))
-      }
-      rangeo <- rangeo[-length(rangeo)]
-      join_chr_all_tb <- tibble::add_row(.data = join_chr_all_tb,
-                                         index = rangeo,
-                                         nlx[2],
-                                         nlx[3],
-                                         nlx[4],
-                                         nlx[5])
-    }
+  # ##set empty tibble to fill with per sample data
+  vuo <- tibble::tibble(variant = character(),
+                        seqnames = character(),
+                        start = numeric(),
+                        end = numeric(),
+                        width = numeric(),
+                        strand = character(),
+                        names = character(),
+                        n.overlaps = numeric())
+  for(x in 1:length(names(gr_list))){
+    vuo <- tibble::add_column(.data = vuo, !!names(gr_list)[x] := character())
   }
 
-  print("Joining into single GRanges...")
-  join_chr_all_gr_tb <- tidyr::separate(data = join_chr_all_tb,
-                                        col =  index,
-                                        into = c("seqnames", "start", "end"),
-                                        sep = "[:-]")
+  var_vec <- unique(stringr::str_sort(as.vector(unlist(lapply(tb_list, function(f){f$variant}))), numeric = TRUE))
 
-  join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
-                                      seqnames,
-                                      "ranges" = start,
-                                      "samples_n" = n.overlaps,
-                                      "sampleIDs" = names)
+  tb_join_list <- lapply(tb_list, function(f){
+    dplyr::left_join(tibble::tibble(variant = var_vec), f)
+    })
+
+  var_join_tb <- tb_join_list[[1]]
+  for(x in 2:length(tb_join_list)){
+    var_join_tb <- dplyr::inner_join(var_join_tb,
+                                     tb_join_list[[x]],
+                                     by = "variant",
+                                     suffix = paste0(".", names(tb_list)))
+  }
+
+  na_names <- dplyr::select(.data = var_join_tb, variant, tidyselect::starts_with("seqnames."))
+
+  ##find overlaps
+  names_num <- cbind(rep("names", dim(na_array)[1]),
+                     rep(0, dim(na_array)[1]),
+                     !is.na(na_names[,c(2:length(na_names[1,]))]))
+
+  for(x in 1:dim(na_array)[1]){
+    print(x)
+    nms <- gsub("seqnames.", "", names(which(na_array[x,])))
+    names_numx <- c(names = paste(nms, collapse = ","),
+                    n.overlaps = sum(as.numeric(na_array[x,])),
+                    as.numeric(na_array[x,]))
+    names(names_numx)[3:length(names_numx)] <- names(tb_list)
+    nms_rm <- nms[1]
+    gr_nm_rm <- grep(nms_rm, colnames(var_join_tb[x,]), value = TRUE)
+    rad <- cbind(var_join_tb[x, c("variant", gr_nm_rm)], tibble::as_tibble(t(names_numx)))
+    rad$n.overlaps <- as.numeric(rad$n.overlaps)
+    names(rad) <- gsub(paste0(".", nms_rm), "", names(rad))
+    vuo <- tibble::add_row(.data = vuo, tibble::as_tibble(rad))
+  }
+
+  vuo_chr_all_tb <- vuo[,c(2:dim(vuo)[2])]
+  vuo_chr_all_gr_tb <- dplyr::select(.data = vuo_chr_all_tb,
+                                  seqnames,
+                                  "ranges" = start,
+                                  "samples_n" = n.overlaps,
+                                  "sampleIDs" = names)
 
   ##make seqinfo
   ##"'seqinfo' must be NULL, or a Seqinfo object, or a character vector of
@@ -769,11 +780,11 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
                                   seqlengths = seqinf[,2],
                                   genome = which_genome)
 
-  join_chr_all_gr <- GenomicRanges::GRanges(seqnames = factor(gsub("chr", "", unlist(join_chr_all_gr_tb[,1]))),
-                         ranges = IRanges::IRanges(start = as.numeric(unlist(join_chr_all_gr_tb[,2])),
-                                                   end = as.numeric(unlist(join_chr_all_gr_tb[,2]))),
+  join_chr_all_gr <- GenomicRanges::GRanges(seqnames = factor(gsub("chr", "", unlist(vuo_chr_all_gr_tb[,1]))),
+                         ranges = IRanges::IRanges(start = as.numeric(unlist(vuo_chr_all_gr_tb[,2])),
+                                                   end = as.numeric(unlist(vuo_chr_all_gr_tb[,2]))),
                          strand = NULL,
-                         mcols = join_chr_all_gr_tb[,c(3,4)],
+                         mcols = vuo_chr_all_gr_tb[,c(3,4)],
                          seqinfo = seqinf)
 
   colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
