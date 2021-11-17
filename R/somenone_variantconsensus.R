@@ -737,13 +737,14 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   }
 
   na_names <- dplyr::select(.data = var_join_tb, variant, tidyselect::starts_with("seqnames."))
+  na_array <- !is.na(na_names[,2:dim(na_names)[2]])
 
   ##find overlaps
-  names_num <- cbind(rep("names", dim(na_array)[1]),
-                     rep(0, dim(na_array)[1]),
+  names_num <- cbind(rep("names", dim(na_names)[1]),
+                     rep(0, dim(na_names)[1]),
                      !is.na(na_names[,c(2:length(na_names[1,]))]))
 
-  for(x in 1:dim(na_array)[1]){
+  for(x in 1:dim(na_names)[1]){
     print(x)
     nms <- gsub("seqnames.", "", names(which(na_array[x,])))
     names_numx <- c(names = paste(nms, collapse = ","),
@@ -1019,7 +1020,7 @@ gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_or
         print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
       } else {
         print("Shared variants found, plotting...")
-          plot_consensus(master_gr = master_gr_list[[2]], tag = paste0(taga, ".all"),  included_order)
+          somenone::plot_consensus(master_gr = master_gr_list[[2]], tag = paste0(taga, ".all"),  included_order)
       }
     }
   }
