@@ -405,77 +405,83 @@ plot_out_list <- function(cna_list, pp_list, dict_file, which_genome, tag, sampl
       cna_maxd[cna_maxd > max_cna_maxd] <- max_cna_maxd
     }
 
-    ##colours for plotting
+    if(length(cna_maxd)>0){
+      ##colours for plotting
 
-    colz <- c("blue", "darkblue", "black", "darkred", "firebrick3", "red2", rep("red",199))
-    names(colz) <- c(seq(from=0,to=198,by=1))
-    cnames <- sort(unique(cna_maxd))
-    colz <- colz[is.element(names(colz), cnames)]
+      colz <- c("blue", "darkblue", "black", "darkred", "firebrick3", "red2", rep("red",199))
+      names(colz) <- c(seq(from=0,to=198,by=1))
+      cnames <- sort(unique(cna_maxd))
+      colz <- colz[is.element(names(colz), cnames)]
 
-    ##plot data.frame
-    plot_df <- data.frame(row.names=seq(from = 1,to = dim(cna_df)[1], by = 1),
-                          seqnames = cna_df[,1],
-                          plot_start = cna_df[,2] + (cum_sum_add - 1),
-                          plot_end = (cna_df[,3] - 1) + cum_sum_add,
-                          cna_call = as.numeric(cna_maxd),
-                          minor_call = as.numeric(unlist(cna_df$Minor_Copy_Number)),
-                          purity = round(as.numeric(cna_df$purity)),
-                          ploidy = round(as.numeric(cna_df$ploidy)),
-                          diploid = 2,
-                          colour = plyr::mapvalues(cna_maxd, cnames, colz),
-                          sample = unlist(cna_df$sampleID))
+      ##plot data.frame
+      plot_df <- data.frame(row.names=seq(from = 1,to = dim(cna_df)[1], by = 1),
+                            seqnames = cna_df[,1],
+                            plot_start = cna_df[,2] + (cum_sum_add - 1),
+                            plot_end = (cna_df[,3] - 1) + cum_sum_add,
+                            cna_call = as.numeric(cna_maxd),
+                            minor_call = as.numeric(unlist(cna_df$Minor_Copy_Number)),
+                            purity = round(as.numeric(cna_df$purity)),
+                            ploidy = round(as.numeric(cna_df$ploidy)),
+                            diploid = 2,
+                            colour = plyr::mapvalues(cna_maxd, cnames, colz),
+                            sample = unlist(cna_df$sampleID))
 
-    ##plot
-    ggp <- ggplot2::ggplot() +
-           ggplot2::geom_hline(data = plot_df,
-                  ggplot2::aes(yintercept = ploidy),
-                      linetype = 1,
-                      color = "purple",
-                      size = 0.5) +
-           ggplot2::geom_hline(data = plot_df,
-                  ggplot2::aes(yintercept = diploid),
-                      linetype = 1,
-                      color = "orange",
-                      size = 0.5) +
-           ggplot2::geom_vline(data = seqlengths,
-                       ggplot2::aes(xintercept = cum_sum_0),
-                       linetype = 1,
-                       color = "dodgerblue",
-                       size = 0.2) +
-           ggplot2::geom_vline(data = seqlengths,
-                       ggplot2::aes(xintercept = cum_sum_centro),
-                       linetype = 4,
-                       color = "grey",
-                       size = 0.2) +
-           ggplot2::geom_segment(data = plot_df,
-                      ggplot2::aes(x = plot_start,
-                       xend = plot_end,
-                       y = cna_call,
-                       yend = cna_call,
-                       colour = colour,
-                       size = 4.5)) +
-           ggplot2::scale_colour_identity() +
-           ggplot2::geom_segment(data = plot_df,
-                      ggplot2::aes(x = plot_start,
-                       xend = plot_end,
-                       y = minor_call,
-                       yend = minor_call,
-                       colour = "forestgreen",
-                       size = 2)) +
-           ggplot2::scale_x_continuous(name = "Chromosome",
-                       labels = as.vector(seqlengths$seqnames),
-                       breaks = seqlengths$cum_sum_centro) +
-           ggplot2::scale_y_continuous(name = "Total CNA (facets tcn.em)",
-                       labels = seq(from = 0, to = max_cna_maxd, by = 1),
-                       breaks = seq(from = 0, to = max_cna_maxd, by = 1),
-                       limits = c(0, max_cna_maxd)) +
-           ggplot2::theme(axis.text.x = ggplot2::element_text(size = 5),
-                       panel.grid.major = ggplot2::element_blank(),
-                       panel.grid.minor = ggplot2::element_blank(),
-                       legend.position="none") +
-           ggplot2::facet_grid(sample ~ .)
+      ##plot
+      ggp <- ggplot2::ggplot() +
+             ggplot2::geom_hline(data = plot_df,
+                    ggplot2::aes(yintercept = ploidy),
+                        linetype = 1,
+                        color = "purple",
+                        size = 0.5) +
+             ggplot2::geom_hline(data = plot_df,
+                    ggplot2::aes(yintercept = diploid),
+                        linetype = 1,
+                        color = "orange",
+                        size = 0.5) +
+             ggplot2::geom_vline(data = seqlengths,
+                         ggplot2::aes(xintercept = cum_sum_0),
+                         linetype = 1,
+                         color = "dodgerblue",
+                         size = 0.2) +
+             ggplot2::geom_vline(data = seqlengths,
+                         ggplot2::aes(xintercept = cum_sum_centro),
+                         linetype = 4,
+                         color = "grey",
+                         size = 0.2) +
+             ggplot2::geom_segment(data = plot_df,
+                        ggplot2::aes(x = plot_start,
+                         xend = plot_end,
+                         y = cna_call,
+                         yend = cna_call,
+                         colour = colour,
+                         size = 4.5)) +
+             ggplot2::scale_colour_identity() +
+             ggplot2::geom_segment(data = plot_df,
+                        ggplot2::aes(x = plot_start,
+                         xend = plot_end,
+                         y = minor_call,
+                         yend = minor_call,
+                         colour = "forestgreen",
+                         size = 2)) +
+             ggplot2::scale_x_continuous(name = "Chromosome",
+                         labels = as.vector(seqlengths$seqnames),
+                         breaks = seqlengths$cum_sum_centro) +
+             ggplot2::scale_y_continuous(name = "Total CNA (facets tcn.em)",
+                         labels = seq(from = 0, to = max_cna_maxd, by = 1),
+                         breaks = seq(from = 0, to = max_cna_maxd, by = 1),
+                         limits = c(0, max_cna_maxd)) +
+             ggplot2::theme(axis.text.x = ggplot2::element_text(size = 5),
+                         panel.grid.major = ggplot2::element_blank(),
+                         panel.grid.minor = ggplot2::element_blank(),
+                         legend.position="none") +
+             ggplot2::facet_grid(sample ~ .)
 
-    ggplot2::ggsave(filename = paste0(tag, ".facets_consensus.plot.pdf"), plot = ggp)
+      ggplot2::ggsave(filename = paste0(tag, ".facets_consensus.plot.pdf"), plot = ggp)
+    }
+  } else {
+    pdf(paste0(tag, ".EMPTY.facets_consensus.plot.pdf"))
+    plot.new()
+    dev.off()
   }
 }
 
@@ -528,18 +534,21 @@ seqlengths_df <- function(in_seqs, dict_file, which_genome){
   seqlens <- seqlens[is.element(seqlens[,1],
                      unique(as.vector(in_seqs))),]
 
-  ## make centromere data from function
-  ##load centromere
-  centromere <- centromeres(seqlens[,1], which_genome)
-  seqlengths <- dplyr::left_join(seqlens, centromere, by = "seqnames")
+  if(dim(seqlens)[1] > 0) {
+    ## make centromere data from function
+    ##load centromere
+    centromere <- centromeres(seqlens[,1], which_genome)
+    seqlengths <- dplyr::left_join(seqlens, centromere, by = "seqnames")
 
-  ##non-numeric chr IDs are numeric as rownames!
-  ##need to output a table to convert between inSeqs and newSeqs
-  seqlengths$cum_sum_0 <- c(1,cumsum(as.numeric(seqlengths$end))[1:length(seqlengths[,1])-1])
-  seqlengths$cum_sum_1 <- c(cumsum(as.numeric(seqlengths$end)))
-  seqlengths$cum_sum_centro <- seqlengths$centromere + seqlengths$cum_sum_0
+    ##non-numeric chr IDs are numeric as rownames!
+    ##need to output a table to convert between inSeqs and newSeqs
+    seqlengths$cum_sum_0 <- c(1,cumsum(as.numeric(seqlengths$end))[1:length(seqlengths[,1])-1])
+    seqlengths$cum_sum_1 <- c(cumsum(as.numeric(seqlengths$end)))
+    seqlengths$cum_sum_centro <- seqlengths$centromere + seqlengths$cum_sum_0
+  }
 
   return(seqlengths)
+
 }
 
 #' Find intersect from list of CNA GRanges
