@@ -221,10 +221,13 @@ anno_ens_cna <- function(gr, which_genome){
 
     ##loop to collapse symbols per region
     print("collapsing gene symbol annotations per region")
-    for(x in 1:max(hits$queryHits)){
-      hitsx <- sort(unique(hits$SYMBOL[hits$queryHits==x]))
-      gr$SYMBOL[x] <- paste(hitsx[2:length(hitsx)], collapse=";")
-      gr$SYMBOLs[x] <- length(hitsx)-1;
+    if(dim(hits)[1] > 0){
+
+      for(x in 1:max(hits$queryHits)){
+        hitsx <- sort(unique(hits$SYMBOL[hits$queryHits==x]))
+        gr$SYMBOL[x] <- paste(hitsx[2:length(hitsx)], collapse=";")
+        gr$SYMBOLs[x] <- length(hitsx)-1;
+      }
     }
 
     colnames(S4Vectors::mcols(gr))[colnames(S4Vectors::mcols(gr)) %in% c("SYMBOL", "SYMBOLs")] <- gene_symbols
@@ -244,14 +247,16 @@ anno_cgc_cna <- function(gr, cgc_gr, which_genome){
   hits$SYMBOL <- cgc_gr[hits$subjectHits]$CGC_gene
   gr$CGC_SYMBOL <- "-"
   gr$CGC_SYMBOLs <- "-"
-  ##loop to collapse symbols per region
-  for(x in 1:max(hits$queryHits)){
-    hitsx <- as.vector(sort(unique(hits$SYMBOL[hits$queryHits==x])))
-    hitsx <- hitsx[!is.na(hitsx)]
-    if(length(hitsx)==0){gr$CGC_SYMBOL[x] <- NA; gr$CGC_SYMBOLs[x] <- 0}
-    else{
-      gr$CGC_SYMBOL[x] <- paste(hitsx[2:length(hitsx)], collapse=";")
-      gr$CGC_SYMBOLs[x] <- length(hitsx)-1;
+  if(dim(hits)[1] > 0){
+    ##loop to collapse symbols per region
+    for(x in 1:max(hits$queryHits)){
+      hitsx <- as.vector(sort(unique(hits$SYMBOL[hits$queryHits==x])))
+      hitsx <- hitsx[!is.na(hitsx)]
+      if(length(hitsx)==0){gr$CGC_SYMBOL[x] <- NA; gr$CGC_SYMBOLs[x] <- 0}
+      else{
+        gr$CGC_SYMBOL[x] <- paste(hitsx[2:length(hitsx)], collapse=";")
+        gr$CGC_SYMBOLs[x] <- length(hitsx)-1;
+      }
     }
   }
 
