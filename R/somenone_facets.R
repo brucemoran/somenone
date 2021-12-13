@@ -477,11 +477,11 @@ plot_out_list <- function(cna_list, pp_list, dict_file, which_genome, tag, sampl
              ggplot2::facet_grid(sample ~ .)
 
       ggplot2::ggsave(filename = paste0(tag, ".facets_consensus.plot.pdf"), plot = ggp)
+    } else {
+      pdf(paste0(tag, ".EMPTY.facets_consensus.plot.pdf"))
+      plot.new()
+      dev.off()
     }
-  } else {
-    pdf(paste0(tag, ".EMPTY.facets_consensus.plot.pdf"))
-    plot.new()
-    dev.off()
   }
 }
 
