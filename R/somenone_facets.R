@@ -531,14 +531,14 @@ seqlengths_df <- function(in_seqs, dict_file, which_genome){
                         stringsAsFactors = FALSE)
 
   ##find those chromosomes in inSeqs
-  seqlens <- seqlens[is.element(seqlens[,1],
+  seqlengths <- seqlens[is.element(seqlens[,1],
                      unique(as.vector(in_seqs))),]
 
-  if(dim(seqlens)[1] > 0) {
+  if(dim(seqlengths)[1] > 0) {
     ## make centromere data from function
     ##load centromere
-    centromere <- centromeres(seqlens[,1], which_genome)
-    seqlengths <- dplyr::left_join(seqlens, centromere, by = "seqnames")
+    centromere <- centromeres(seqlengths[,1], which_genome)
+    seqlengths <- dplyr::left_join(seqlengths, centromere, by = "seqnames")
 
     ##non-numeric chr IDs are numeric as rownames!
     ##need to output a table to convert between inSeqs and newSeqs
