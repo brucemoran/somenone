@@ -1,0 +1,21 @@
+Bootstrap:docker
+From:bioconductor/bioconductor_docker
+
+%help
+
+    R container for github.com/brucemoran/somatic_n-of-1 R packages with Ensembl/annotation related packages (large)
+
+%environment
+
+    export R_LIBS=/usr/local/lib/R/site-library LD_LIBRARY_PATH=/usr/local/lib
+
+%post
+
+    export R_LIBS=/usr/local/lib/R/site-library
+
+    ##devtools for facets to install packages
+    R --slave -e 'devtools::install_github("mskcc/pctGCdata", build_vignettes = FALSE, dependencies=TRUE)'
+    R --slave -e 'devtools::install_github("mskcc/facets", build_vignettes = FALSE, ref="434b5ce5903dc6b42e3c31fcfdceb9dddc56d82c", dependencies=TRUE)'
+
+    ##somenone
+    R --slave -e 'devtools::install_github("brucemoran/somenone", build_vignettes = FALSE, update=TRUE, ask=FALSE, dependencies=TRUE, clean=TRUE)'
