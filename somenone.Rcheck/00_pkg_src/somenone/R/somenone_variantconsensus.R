@@ -15,6 +15,7 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
 
   options(stringAsFactors = FALSE)
 
+
   ##parse VCFs
   ##all should exist in current dir, all output to same dir
   vcf_vec <- dir(pattern = vep_vcf_pattern)
@@ -96,31 +97,19 @@ variant_consensus <- function(germline_id, vep_vcf_pattern, raw_vcf_pattern = "r
           strsplit(f,"")[[1]][1]
         })), collapse = "")
 
-    gr_super_plot_out <- somenone::gr_super_alt_plot(var_list = var_list,
-                                                     name_callers = two_callers,
-                                                     impacts = impact,
-                                                     taga = paste0(tag, ".",  impact_str, "_impacts"),
-                                                     included_order,
-                                                     which_genome)
-
-   ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
-   gr_super_plot_out_list <- list(gr_super_plot_out = gr_super_plot_out,
-                                  var_list = var_list,
-                                  name_callers = two_callers,
-                                  impacts = impact,
-                                  taga = paste0(tag, ".", impact_str, "_impacts"),
-                                  included_order = included_order,
-                                  which_genome = which_genome, call = "gr_super_alt_plot(gr_super_alt_plot_list$var_list, gr_super_alt_plot_list$name_callers, gr_super_alt_plot_list$impacts, gr_super_alt_plot_list$taga, gr_super_alt_plot_list$included_order, gr_super_alt_plot_list$which_genome)")
-
-   save(gr_super_plot_out_list,
-        file = paste0(paste0(tag, ".", impact_str, "_impacts"), ".gr_super_alt_plot.RData"))
-
+    ##get GRanges superset for HIGH, MODERATE IMPACTS from VEP
+    grsuper_plot_high <- somenone::gr_super_alt_plot(var_list,
+                                           two_callers,
+                                           impacts = impact,
+                                           taga = paste0(tag, ".", impact_str, "_impacts"),
+                                           included_order,
+                                           which_genome)
   } else {
     print("No variants found in one or more callers, please check and exclude")
     vcf_out <- paste0(names(var_list[[1]]), ".no_vars.impacts.pcgr.tsv.vcf")
-    readr::write_tsv(data.frame(), file = vcf_out)
+    readr::write_tsv(data.frame(), path = vcf_out)
     file_out <- paste0(names(var_list[[1]]), ".consensus.tsv")
-    readr::write_tsv(data.frame(), file = file_out)
+    readr::write_tsv(data.frame(), path = file_out)
   }
 }
 
@@ -409,7 +398,7 @@ at_least_two <- function (var_list, gr_super, tag){
       if (!length(names(gr_plot)) == 0) {
         file_out <- paste0(samp, ".", tag, ".consensus.tsv")
         vcf_out <- paste0(samp, ".", tag, ".pcgr.tsv.vcf")
-        readr::write_tsv(as.data.frame(gr_plot), file = file_out)
+        readr::write_tsv(as.data.frame(gr_plot), path = file_out)
         vcf_grp <- tibble::as_tibble(as.data.frame(gr_plot))
         vcf_grp <- dplyr::mutate(vcf_grp, r = names(gr_plot))
         vcf_grps <- tidyr::separate(vcf_grp, r, c("#CHROM",
@@ -423,12 +412,12 @@ at_least_two <- function (var_list, gr_super, tag){
         vcf_grpms <- dplyr::select(vcf_grpm, "#CHROM", POS,
             ID, REF, ALT, QUAL, FILTER, INFO, FORMAT, sampleID)
         colnames(vcf_grpms)[colnames(vcf_grpms) == "sampleID"] <- samp
-        readr::write_tsv(as.data.frame(vcf_grpms), file = vcf_out)
+        readr::write_tsv(as.data.frame(vcf_grpms), path = vcf_out)
       } else {
         file_out <- paste0(samp, ".", tag, ".consensus.tsv")
-        readr::write_tsv(as.data.frame(gr_plot), file = file_out)
+        readr::write_tsv(as.data.frame(gr_plot), path = file_out)
         vcf_out <- paste0(names(var_list[[1]]), ".no_vars.", tag, ".pcgr.tsv.vcf")
-        readr::write_tsv(data.frame(), file = vcf_out)
+        readr::write_tsv(data.frame(), path = vcf_out)
       }
       return(gr_plot)
   })
@@ -608,13 +597,7 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
     ##remove NAs (set to 0)
     plot_af[is.na(plot_af)] <- 0
     plot_af <- sapply(plot_af, as.numeric)
-    if(is.null(dim(plot_af))){
-      tt <- t(as.data.frame(plot_af))
-      plot_af <- tt
-      rownames(plot_af) <- uniq_labels
-    } else {
-      rownames(plot_af) <- uniq_labels
-    }
+    rownames(plot_af) <- uniq_labels
 
     ##order plot based on input set (shared or all)
     if(length(grep("shared", tag)) == 1){
@@ -633,35 +616,23 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
     row_fontsize <- 1
     colz <- grDevices::colorRampPalette(colours)
     ##plotting and whether to use labels, size of labels
-    if(is.null(dim(plot_af))){
+    if(dim(plot_af)[1] < 120){
       row_fonttype = "bold"
-      row_fontsize = 12
+      if(dim(plot_af)[1] < 20){row_fontsize = 12}
+      if(dim(plot_af)[1] < 20){row_fontsize = 8}
+      if(dim(plot_af)[1] < 50){row_fontsize = 6}
+      if(dim(plot_af)[1] > 50 & dim(plot_af)[1] < 100){row_fontsize = 4}
+      if(dim(plot_af)[1] > 100){row_fontsize = 2}
       plot_labels <- rownames(plot_af)
     } else {
-      if(dim(plot_af)[1] < 120){
-        row_fonttype = "bold"
-        if(dim(plot_af)[1] < 20){row_fontsize = 12}
-        if(dim(plot_af)[1] < 20){row_fontsize = 8}
-        if(dim(plot_af)[1] < 50){row_fontsize = 6}
-        if(dim(plot_af)[1] > 50 & dim(plot_af)[1] < 100){row_fontsize = 4}
-        if(dim(plot_af)[1] > 100){row_fontsize = 2}
-        plot_labels <- rownames(plot_af)
-      } else {
-        ###only include rownames that are pathogenic
-        row_fonttype = "bold"
-        plot_labels <- grep(plot_label_pattern, rownames(plot_af), value = TRUE)
-        if(length(plot_labels)[1] < 20){row_fontsize = 12}
-        if(length(plot_labels)[1] < 20){row_fontsize = 8}
-        if(length(plot_labels)[1] < 50){row_fontsize = 6}
-        if(length(plot_labels)[1] > 50 & length(plot_labels)[1] < 100){row_fontsize = 4}
-        if(length(plot_labels)[1] > 100){row_fontsize = 2}
-      }
-    }
-
-    if(length(plot_af)>2){
-      gaps_col <- c(1:length(included_order))
-    } else {
-      gaps_col <- NULL
+      ###only include rownames that are pathogenic
+      row_fonttype = "bold"
+      plot_labels <- grep(plot_label_pattern, rownames(plot_af), value = TRUE)
+      if(length(plot_labels)[1] < 20){row_fontsize = 12}
+      if(length(plot_labels)[1] < 20){row_fontsize = 8}
+      if(length(plot_labels)[1] < 50){row_fontsize = 6}
+      if(length(plot_labels)[1] > 50 & length(plot_labels)[1] < 100){row_fontsize = 4}
+      if(length(plot_labels)[1] > 100){row_fontsize = 2}
     }
 
     grDevices::pdf(paste0(tag, ".pdf"), onefile = F)
@@ -676,7 +647,7 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
        fontsize_row = row_fontsize,
        labels_row = plot_labels,
        border_color = "lightgrey",
-       gaps_col = gaps_col)
+       gaps_col = c(1:length(included_order)))
     grDevices::dev.off()
   }
 }
@@ -688,109 +659,60 @@ plot_consensus <- function(master_gr, tag, included_order, sample_map = NULL, co
 #' @param tag to apply to output file (master)
 #' @param which_genome hg19 or hg38
 #' @return list of GRanges object of shared intersecting, and all mutations with ps_vec, dp_vec columns, and original rownames (should be unique therefore)
-#' @importFrom magrittr '%>%'
 #' @export
 
 master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_genome){
-
-  options(scipen=999)
 
   ##check gr is A GRanges object
   if(!as.vector(class(gr_list)) %in% c("GRangesList", "list")){
     stop("Input \'gr_list\' is not a GRangesList nor list object, retry")
   }
 
-  ##decompose gr_list into a list of variants found
-  tb_list <- lapply(gr_list, function(f){
-      tf <- tibble::as_tibble(f)[1:5] %>%
-            dplyr::mutate(across(where(is.factor), as.character)) %>%
-            dplyr::rowwise() %>%
-            dplyr::mutate(variant = paste(c(seqnames, start, end), collapse="_")) %>%
-            dplyr::ungroup()
+  ##use bedr::bedr.join.multiple.region to make a complete set and samples
+  ##lapply over gr_list which creates character vector list in "chrX:1-100" format
+  ##thinks it's 0-based so add 1...
+  chr_list <- lapply(gr_list, function(f){
+      bs <- apply(as.data.frame(unique(f)), 1, function(ff){
+          ff <- unlist(ff)
+          paste0("chr", ff[1], ":", as.numeric(gsub(" ", "", ff[2])), "-", as.numeric(gsub(" ", "", ff[3]))+1)
+        })
+        bedr::bedr.sort.region(bs)
     })
+  join_chr_all_tb <- tibble::as_tibble(bedr::bedr.join.multiple.region(chr_list))
 
-  # ##set empty tibble to fill with per sample data
-  vuo <- tibble::tibble(variant = character(),
-                        seqnames = character(),
-                        start = numeric(),
-                        end = numeric(),
-                        width = numeric(),
-                        strand = character(),
-                        names = character(),
-                        n.overlaps = numeric())
-  for(x in 1:length(names(gr_list))){
-    vuo <- tibble::add_column(.data = vuo, !!names(gr_list)[x] := character())
-  }
-
-  var_vec <- unique(stringr::str_sort(as.vector(unlist(lapply(tb_list, function(f){f$variant}))), numeric = TRUE))
-
-  tb_join_list <- lapply(tb_list, function(f){
-    dplyr::left_join(tibble::tibble(variant = var_vec), f)
-    })
-
-  var_join_tb <- tb_join_list[[1]]
-  for(x in 2:length(tb_join_list)){
-    var_join_tb <- dplyr::inner_join(var_join_tb,
-                                     tb_join_list[[x]],
-                                     by = "variant",
-                                     suffix = paste0(".", names(tb_list)))
-  }
-
-  na_names <- dplyr::select(.data = var_join_tb, variant, tidyselect::starts_with("seqnames."))
-  na_array <- !is.na(na_names[,2:dim(na_names)[2]])
-
-  ##find overlaps
-  names_num <- cbind(rep("names", dim(na_names)[1]),
-                     rep(0, dim(na_names)[1]),
-                     !is.na(na_names[,c(2:length(na_names[1,]))]))
-
-  for(x in 1:dim(na_names)[1]){
-    print(x)
-    nms <- gsub("seqnames.", "", names(which(na_array[x,])))
-    names_numx <- c(names = paste(nms, collapse = ","),
-                    n.overlaps = sum(as.numeric(na_array[x,])),
-                    as.numeric(na_array[x,]))
-    names(names_numx)[3:length(names_numx)] <- names(tb_list)
-    nms_rm <- nms[1]
-    gr_nm_rm <- grep(nms_rm, colnames(var_join_tb[x,]), value = TRUE)
-    rad <- cbind(var_join_tb[x, c("variant", gr_nm_rm)], tibble::as_tibble(t(names_numx)))
-    rad$n.overlaps <- as.numeric(rad$n.overlaps)
-    names(rad) <- gsub(paste0(".", nms_rm), "", names(rad))
-    vuo <- tibble::add_row(.data = vuo, tibble::as_tibble(rad))
-  }
-
-  vuo_chr_all_tb <- vuo[,c(2:dim(vuo)[2])]
-  vuo_chr_all_gr_tb <- dplyr::select(.data = vuo_chr_all_tb,
-                                  seqnames,
-                                  "ranges" = start,
-                                  "samples_n" = n.overlaps,
-                                  "sampleIDs" = names)
-
+  ##split back into GRanges
+  print("Joining into single GRanges...")
+  join_chr_all_gr_tb <- tidyr::separate(data = join_chr_all_tb,
+                                        col =  index,
+                                        into = c("seqnames", "start", "end"),
+                                        sep = "[:-]")
+  join_chr_all_gr_tb <- dplyr::select(.data = join_chr_all_gr_tb,
+                                      seqnames,
+                                      "ranges" = start,
+                                      "samples_n" = n.overlaps,
+                                      "sampleIDs" = names)
   ##make seqinfo
   ##"'seqinfo' must be NULL, or a Seqinfo object, or a character vector of
   ## seqlevels, or a named numeric vector of sequence lengths"
-  seqinf <- tryCatch(GenomeInfoDb::fetchExtendedChromInfoFromUCSC(which_genome),
-              error = function(f){
-                GenomeInfoDb::getChromInfoFromUCSC(which_genome)
-              }
-            )
-
+  if(length(grep("4.", sessionInfo()[1]$R.version$version.string))>0){
+    seqinf <- GenomeInfoDb::getChromInfoFromUCSC(which_genome)
+  } else {
+    seqinf <- GenomeInfoDb::fetchExtendedChromInfoFromUCSC(which_genome)
+  }
   seqinf[,1] <- gsub("chr","",seqinf[,1])
   seqinf <- seqinf[grep("_", seqinf[,1], invert = TRUE),c(1,2)]
-  seqinf <- GenomeInfoDb::Seqinfo(seqnames = seqinf[,1],
-                                  seqlengths = seqinf[,2],
-                                  genome = which_genome)
+  seqinf <- Seqinfo(seqnames = seqinf[,1],
+                    seqlengths = seqinf[,2],
+                    genome = which_genome)
 
-  join_chr_all_gr <- GenomicRanges::GRanges(seqnames = factor(gsub("chr", "", unlist(vuo_chr_all_gr_tb[,1]))),
-                         ranges = IRanges::IRanges(start = as.numeric(unlist(vuo_chr_all_gr_tb[,2])),
-                                                   end = as.numeric(unlist(vuo_chr_all_gr_tb[,2]))),
+  join_chr_all_gr <- GenomicRanges::GRanges(seqnames = factor(gsub("chr", "", unlist(join_chr_all_gr_tb[,1]))),
+                         ranges = IRanges::IRanges(start = as.numeric(unlist(join_chr_all_gr_tb[,2])),
+                                                   end = as.numeric(unlist(join_chr_all_gr_tb[,2]))),
                          strand = NULL,
-                         mcols = vuo_chr_all_gr_tb[,c(3,4)],
+                         mcols = join_chr_all_gr_tb[,c(3,4)],
                          seqinfo = seqinf)
 
   colnames(S4Vectors::mcols(join_chr_all_gr)) <- gsub("mcols.", "", colnames(S4Vectors::mcols(join_chr_all_gr)))
-
-  join_chr_all_gr <- unique(join_chr_all_gr)
 
   ##sample names
   samples <- unique(unlist(lapply(unique(join_chr_all_gr$sampleIDs), function(s){
@@ -829,7 +751,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
       colnames(df_master) <- names(gr_ff_df)
 
       ##where gr_ff intersects with the supplied ranges
-      hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 0))
+      hits <- base::as.data.frame(GenomicRanges::findOverlaps(gr_ff, gr_master, ignore.strand = TRUE, minoverlap = 1))
 
       ##place 'hits' annotation as per subjectHits
       qh <- hits$queryHits
@@ -848,7 +770,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   ##need to collapse the duplicated columns into one
   ##include a 'rowname' for unique naming
 
-  ##is mcols prefix in mcols? remove unless also in dp_vec
+  ##is mocls prefix in mcols? remove unless also in dp_vec
   col_dp <- colnames(S4Vectors::mcols(join_chr_all_gr)) %in% dp_vec
   dp_vecr <- c(dp_vec, "rowname")
   if(length(table(col_dp))==1){
@@ -884,11 +806,7 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   ##which of dp_chk are not NA (use first match for specifying mcols)
   not_isna <- !is.na(dp_tb[, dp_chk])
   dp_cd_tb <- dplyr::bind_rows(lapply(1:dim(dp_tb)[1], function(f){
-     print(f)
-
     ff <- dp_tb[f, ]
-
-    ##have come across two NAs which give both FALSE
     mtch_i <- match(dp_chk[match(TRUE, not_isna[f,])], colnames(dp_tb))
     mtch_tb <- dp_tb[f, mtch_i:(mtch_i+length(dp_vecr)-1)]
     colnames(mtch_tb) <- col_uniq
@@ -905,9 +823,9 @@ master_intersect_snv_grlist <- function(gr_list, ps_vec, dp_vec, tag, which_geno
   join_chr_kp_gr <- sort(join_chr_all_gr[join_chr_all_gr$samples_n > 1,])
   names(join_chr_kp_gr) <- join_chr_kp_gr$rowname
   adr <- as.data.frame(S4Vectors::mcols(join_chr_kp_gr))
-  readr::write_tsv(adr, file = paste0(tag, ".master_consensus.tsv"))
+  readr::write_tsv(adr, path = paste0(tag, ".master_consensus.tsv"))
   readr::write_tsv(as.data.frame(S4Vectors::mcols(join_chr_all_gr)),
-                  file = paste0(tag, ".master_all.tsv"))
+                  path = paste0(tag, ".master_all.tsv"))
   gr_master_consensus_all <- list(join_chr_kp_gr, join_chr_all_gr)
   save(gr_master_consensus_all, file = paste0(tag, ".master_consensus_all.RData"))
   return(gr_master_consensus_all)
@@ -976,6 +894,7 @@ gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_or
       print("Variants found, plotting...")
         somenone::plot_single(granges = plot_list[[1]], sampleID = names(plot_list), tag = paste0(names(plot_list), ".", taga, ".solo"))
     }
+
   } else {
 
     ##test for empty and rename to exclude those empty
@@ -994,34 +913,29 @@ gr_super_alt_plot <- function(var_list, name_callers, impacts, taga, included_or
     names(nz_plot_list) <- nm_vec
 
     ##create a GRanges of shared elements from list
-    if(length(nz_plot_list)==0){
+    col_vec <- names(S4Vectors::mcols(nz_plot_list[[1]]))
+    ps_vec <- col_vec[1:3]
+    dp_vec <- col_vec[4:length(col_vec)]
+    master_gr_list <- master_intersect_snv_grlist(gr_list = nz_plot_list,
+                                              ps_vec = ps_vec,
+                                              dp_vec = dp_vec,
+                                              tag = taga,
+                                              which_genome)
+
+    ##based on elements in nz_plot_list, plot or do not
+    ##shared
+    if(length(master_gr_list[[1]]) == 0){
       print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
-
     } else {
-      col_vec <- names(S4Vectors::mcols(nz_plot_list[[1]]))
-      ps_vec <- col_vec[1:3]
-      dp_vec <- col_vec[4:length(col_vec)]
-      master_gr_list <- somenone::master_intersect_snv_grlist(gr_list = nz_plot_list,
-                                                ps_vec = ps_vec,
-                                                dp_vec = dp_vec,
-                                                tag = taga,
-                                                which_genome)
-
-      ##based on elements in nz_plot_list, plot or do not
-      ##shared
-      if(length(master_gr_list[[1]]) == 0){
-        print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
-      } else {
-        print("Shared variants found, plotting...")
-          somenone::plot_consensus(master_gr = master_gr_list[[1]], tag = paste0(taga, ".shared"), included_order)
-      }
-      ##all
-      if(length(master_gr_list[[2]]) == 0){
-        print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
-      } else {
-        print("Shared variants found, plotting...")
-          somenone::plot_consensus(master_gr = master_gr_list[[2]], tag = paste0(taga, ".all"),  included_order)
-      }
+      print("Shared variants found, plotting...")
+        plot_consensus(master_gr = master_gr_list[[1]], tag = paste0(taga, ".shared"), included_order)
+    }
+    ##all
+    if(length(master_gr_list[[2]]) == 0){
+      print(paste0("No shared variants for IMPACTS: ", impacts, ", support across callers lacking"))
+    } else {
+      print("Shared variants found, plotting...")
+        plot_consensus(master_gr = master_gr_list[[2]], tag = paste0(taga, ".all"),  included_order)
     }
   }
   return(list(gr_super, plot_list))

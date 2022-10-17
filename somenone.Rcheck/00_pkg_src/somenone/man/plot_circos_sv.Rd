@@ -4,13 +4,7 @@
 \alias{plot_circos_sv}
 \title{OmicCircos plotting from data.frame from GRIDSS bedpe}
 \usage{
-plot_circos_sv(
-  input_df,
-  output_path,
-  which_genome,
-  cytoband,
-  chimerkb4 = FALSE
-)
+plot_circos_sv(input_df, output_path, cytoband)
 }
 \arguments{
 \item{input_df}{data.frame with chrom1, start1, end1, symbol1,
@@ -19,11 +13,7 @@ chrom2, start2, end2, symbol2, sampleID, colour columns}
 \item{output_path}{path to where PDF file with output plot is written
 N.B. two pages, one with Circos plot and one with legend}
 
-\item{which_genome, }{genome assembly used ("hg19", "hg38")}
-
 \item{cytoband}{internal file downloaded in prep_plot_circos_sv}
-
-\item{chimerkb4}{boolean to specify using chimerkb4 data}
 }
 \value{
 none, prints plot to file

@@ -2,7 +2,7 @@
 % Please edit documentation in R/somenone_facets.R
 \name{facets_cna_call}
 \alias{facets_cna_call}
-\title{Standard Facets CNA call wrapper}
+\title{Facets functions}
 \usage{
 facets_cna_call(input_csv)
 }
@@ -13,5 +13,5 @@ facets_cna_call(input_csv)
 none, saves plots and writes output in current dir
 }
 \description{
-Standard Facets CNA call wrapper
+Standard Facets CNA call
 }

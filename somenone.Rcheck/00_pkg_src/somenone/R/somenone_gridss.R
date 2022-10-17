@@ -12,9 +12,11 @@
 gridss_parse_plot <- function(vcf, dict_file, germline_id, which_genome = NULL, output_path = NULL){
 
   ##set genome as hg19 unless spec'd
-  if(is.null(which_genome)){
+  if (is.null(which_genome)){
+    if(unlist(lapply(c("19", "37"), function(f){grep(f, dict_file)})) > 0){
     which_genome <- "hg19"
-    if(length(grep("38", dict_file))==1) {
+    }
+    else{
       which_genome <- "hg38"
     }
   }
@@ -231,7 +233,7 @@ gridss_annotate_gr <- function(gr, which_genome) {
 prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 
   if(!is.data.frame(input_df)){
-    print("Require data.frame input with chromosomes as factors")
+    print("Require data.frame input with chromsomes as factors")
   } else {
 
     ##write output table
@@ -255,15 +257,15 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
     tempf <- tempfile()
     if(which_genome == "hg19"){
       utils::download.file(url19, tempf)
-      cytoband <- readr::read_tsv(tempf, col_names = FALSE)
+      cytoband <- utils::read.table(tempf)
     } else {
-      utils::download.file(url38, tempf)
-      cytoband <- readr::read_tsv(tempf, col_names = FALSE)
+      utils::download.file(url19, tempf)
+      cytoband <- utils::read.table(tempf)
     }
 
-    plot_circos_sv(input_df_tr_1, output_path, which_genome, cytoband)
+    plot_circos_sv(input_df_tr_1, output_path, cytoband)
     if(!is.null(input_df_tr_2)){
-      plot_circos_sv(input_df_tr_2, paste0(output_path, ".diff_chrs"), which_genome, cytoband)
+      plot_circos_sv(input_df_tr_2, paste0(output_path, ".diff_chrs"), cytoband)
     }
   }
 }
@@ -273,13 +275,11 @@ prep_plot_circos_sv <- function(input_df, which_genome, dict_file, output_path){
 #'   chrom2, start2, end2, symbol2, sampleID, colour columns
 #' @param output_path path to where PDF file with output plot is written
 #'    N.B. two pages, one with Circos plot and one with legend
-#' @param which_genome, genome assembly used ("hg19", "hg38")
 #' @param cytoband internal file downloaded in prep_plot_circos_sv
-#' @param chimerkb4 boolean to specify using chimerkb4 data
 #' @return none, prints plot to file
 #' @export
 
-plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimerkb4 = FALSE){
+plot_circos_sv <- function(input_df, output_path, cytoband){
 
   ##circlize requires 'chr' label on chroms
   plot_df_list <- parse_input_df(input_df, cytoband)
@@ -287,10 +287,7 @@ plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimer
   labels_o20 <- rbind(plot_df_list[["labels_o1"]][1:20,], plot_df_list[["labels_o2"]][1:20,])
 
   ##cChimerKBv4
-  chim_df <- NULL
-  if(chimerkb4 == TRUE){
-    chim_df <- findin_chimerkb4(input_df)
-  }
+  chim_df <- findin_chimerkb4(input_df)
 
   ##circize plot
   ##colours per-sample
@@ -300,11 +297,9 @@ plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimer
   grDevices::pdf(paste0(output_path, ".pdf"), width = 9, height = 9)
 
   ##initialise blank ideogram
-  circlize::circos.clear()
-  circlize::circos.par("start.degree" = 90)
-  circlize::circos.initializeWithIdeogram(plotType=c("axis", "labels"))
+  circlize::circos.initializeWithIdeogram(plotType = NULL)
 
-  ##gene labels
+  ##labels on outer track if enough space...
   if(!is.null(chim_df)){
     chim_df_list <- parse_input_df(chim_df, cytoband)
     circlize::circos.genomicLabels(chim_df_list[["labels_o"]],
@@ -325,41 +320,31 @@ plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimer
     } else {
       ##top 20 best by qualscore
       circlize::circos.genomicLabels(labels_o20,
-                                     labels.column = "symbol",
-                                     side = "outside",
-                                     col = labels_o20$colour,
-                                     line_col = labels_o20$colour,
-                                     cex=0.3)
+                           labels.column = "symbol",
+                           side = "outside",
+                           col = labels_o20$colour,
+                           line_col = labels_o20$colour)
     }
   }
 
-  circlize::circos.genomicIdeogram(species = which_genome)
-
-  circlize::circos.trackPlotRegion(track.index = 4, bg.lwd = 0.1, bg.lty = 0, panel.fun = function(x, y) {
-    circlize::circos.genomicAxis(h = "bottom", direction = "inside", labels.cex = 0.2)
-  })
-
-  ##blank track
-  circlize::circos.trackPlotRegion(ylim = c(0, 0.01), bg.lty = 0)
+  ##cytoband data
+  circlize::circos.genomicIdeogram(cytoband)
 
   ##links
   circlize::circos.genomicLink(region1 = plot_df_list[["region_1"]],
                                region2 = plot_df_list[["region_2"]],
                                col = plot_df_list[["region_c"]],
-                               lwd = plot_df_list[["log10quals"]]/1.8,
-                               h.ratio = 0.3)
+                               lwd = plot_df_list[["log10quals"]]/1.8)
 
   if(!is.null(chim_df)){
-   circlize::circos.genomicLink(region1 = chim_df_list[["region_1"]],
-                               region2 = chim_df_list[["region_2"]],
-                               col = "#00000080",
-                               lwd = 10,
-                               h.ratio = 0.3)
+    circlize::circos.genomicLink(region1 = chim_df_list[["region_1"]],
+                                region2 = chim_df_list[["region_2"]],
+                                col = "#00000080",
+                                lwd = 10)
   }
 
   ##legend
-  print("Making legend...")
-  nms <- gsub(",", ", ", unique(plot_df_list[["input_df"]][,"sampleID"]))
+  nms <- gsub(",", ", ", unique(names(plot_df_list[["region_c"]])))
   colz <- unique(plot_df_list[["region_c"]])
   lgnd <- ComplexHeatmap::Legend(at = nms,
                                  type = "lines",
@@ -372,7 +357,6 @@ plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimer
   grid::grid.draw(lgnd)
 
   grDevices::dev.off()
-
 }
 
 #' Download and parse ChimerKB v4 for annotating known fusions
@@ -380,9 +364,9 @@ plot_circos_sv <- function(input_df, output_path, which_genome, cytoband, chimer
 #' @export
 
 download_chimerkb4 <- function(){
-  urlckb <- "https://www.kobic.re.kr/chimerdb_mirror/downloads?name=ChimerKB4.xlsx"
+  urlckb <- paste0("https://www.kobic.re.kr/chimerdb_mirror/downloads?name=ChimerKB4.xlsx")
   tempf <- tempfile()
-  utils::download.file(urlckb, tempf, method = "curl")
+  utils::download.file(urlckb, tempf)
   chimerkb4 <- readxl::read_xlsx(tempf, sheet = 1)
   return(chimerkb4)
 }
@@ -454,8 +438,8 @@ parse_input_df <- function(input_df, cytoband){
   region_2 <- data.frame(region = input_df[,"chrom2"],
                       start = input_df[,"start2"],
                       end = input_df[,"end2"])
-  region_1_in <- region_1[,1] %in% unlist(cytoband[,1])
-  region_2_in <- region_2[,1] %in% unlist(cytoband[,1])
+  region_1_in <- region_1[,1] %in% cytoband[,1]
+  region_2_in <- region_2[,1] %in% cytoband[,1]
   region_1 <- region_1[region_1_in & region_2_in,]
   region_2 <- region_2[region_1_in & region_2_in,]
   region_c <- input_df[region_1_in & region_2_in, "colour"]
