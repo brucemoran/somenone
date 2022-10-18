@@ -2,22 +2,35 @@
 % Please edit documentation in R/somenone_facets.R
 \name{facets_cna_consensus}
 \alias{facets_cna_consensus}
-\title{Consensus CNA estimation and plotting with Facets input}
+\title{Consensus CNA estimation and plotting with Facets input
+All files being matched to be contained in work_dir}
 \usage{
-facets_cna_consensus(pattern, dict_file, tag, cgc_bed = NULL)
+facets_cna_consensus(
+  cncf_match,
+  pp_match,
+  dict_file,
+  tag,
+  cgc_bed = NULL,
+  work_dir = NULL
+)
 }
 \arguments{
-\item{pattern}{string pattern within file names to use for parsing input}
+\item{cncf_match}{character matched for a cncf format output of facets}
 
-\item{dict_file}{a dictionary file for the fasta used to align data}
+\item{pp_match}{character path to a ploidy/purity format output of facets}
+
+\item{dict_file}{character string name of dictionary file for the fasta used to align data}
 
 \item{tag}{a string used to tag output}
 
 \item{cgc_bed}{bedfile from the Cancer Gene Census from COSMIC}
+
+\item{work_dir}{character path of where files should be found, written (default: ./)}
 }
 \value{
 none, saves plots and data in current dir
 }
 \description{
 Consensus CNA estimation and plotting with Facets input
+All files being matched to be contained in work_dir
 }

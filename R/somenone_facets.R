@@ -2,11 +2,15 @@
 #'
 #' @import pctGCdata
 #' @param input_csv path to CSV format file as per requirements of Facets
+#' @param work_dir character path of where files should be found, written (default: ./)
 #' @return none, saves plots and writes output in current dir
 #' @export
 
-facets_cna_call <- function(input_csv){
+facets_cna_call <- function(input_csv, work_dir = NULL){
 
+  if(is.null(work_dir)){
+    work_dir <- "./"
+  }
   attachNamespace("pctGCdata")
   tumour <- stringr::str_split(input_csv, "\\.")[[1]][1]
   set.seed(1234)
@@ -17,33 +21,39 @@ facets_cna_call <- function(input_csv){
   fit <- facets::emcncf(oo)
   ploidpurdf <- data.frame(PLOIDY = round(fit$ploidy, digits=3),
                            PURITY = round(fit$purity, digits=3))
-  readr::write_tsv(ploidpurdf, file = paste0(tumour,".fit_ploidy_purity.tsv"))
-  readr::write_tsv(round(fit$cncf, 3), file = paste0(tumour,".fit_cncf_jointsegs.tsv"))
+  readr::write_tsv(ploidpurdf, file = paste0(work_dir, "/", tumour,".fit_ploidy_purity.tsv"))
+  readr::write_tsv(round(fit$cncf, 3), file = paste0(work_dir, "/", tumour,".fit_cncf_jointsegs.tsv"))
   pcgr_out <- tibble::tibble(Chromosome = fit$cncf$chrom,
                              Start = as.integer(fit$cncf$start),
                              End = as.integer(fit$cncf$end),
                              Segment_Mean = fit$cncf$cnlr.median)
-  readr::write_tsv(pcgr_out, file = paste0(tumour,".cncf_jointsegs.pcgr.tsv"))
-  grDevices::pdf(paste0(tumour, ".facets_CNA.pdf"))
+  readr::write_tsv(pcgr_out, file = paste0(work_dir, "/", tumour,".cncf_jointsegs.pcgr.tsv"))
+  grDevices::pdf(file = paste0(work_dir, "/", tumour, ".facets_CNA.pdf"))
     facets::plotSample(x = oo, emfit = fit, plot.type = "both", sname = tumour)
   grDevices::dev.off()
 }
 
 #' Consensus CNA estimation and plotting with Facets input
-#'
+#' All files being matched to be contained in work_dir
 #' @import pctGCdata
-#' @param pattern string pattern within file names to use for parsing input
-#' @param dict_file a dictionary file for the fasta used to align data
+#' @param cncf_match character matched for a cncf format output of facets
+#' @param pp_match character path to a ploidy/purity format output of facets
+#' @param dict_file character string name of dictionary file for the fasta used to align data
 #' @param tag a string used to tag output
 #' @param cgc_bed bedfile from the Cancer Gene Census from COSMIC
+#' @param work_dir character path of where files should be found, written (default: ./)
 #' @return none, saves plots and data in current dir
 #' @export
 
-facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
+facets_cna_consensus <- function(cncf_match, pp_match, dict_file, tag, cgc_bed = NULL, work_dir = NULL) {
 
   ##housekeeping
   options(scipen = 999)
   options(stringAsFactors = FALSE)
+
+  if(is.null(work_dir)){
+    work_dir <- "./"
+  }
 
   ##set genome assembly version based on dictfile
   which_genome <- "hg19"
@@ -53,41 +63,47 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
 
   ##load Cancer Gene Census bed file if supplied and run process
   cgc_gr <- NULL
-  if(! is.null(cgc_bed)){
+  if(!is.null(cgc_bed)){
     print("Working on CGC")
-    cgc <- utils::read.table(cgc_bed)
+    cgc <- utils::read.table(paste0(work_dir, "/", cgc_bed))
     cgc_gr <- GenomicRanges::GRanges(seqnames = cgc[,1],
                                     ranges = IRanges::IRanges(cgc[,2], cgc[,3]),
                                     CGC_gene = unlist(lapply(as.vector(cgc[,4]), function(f){
                                                         strsplit(f, ";")[[1]][1]
                                                       })))
-    in_list <- as.list(dir(pattern = paste0(pattern, "$")))
-    out_list <- lapply(in_list, function(f){
-      somenone::process_in_list(f, which_genome, cgc_gr)
+    in_list <- as.list(dir(work_dir, pattern = paste0(cncf_match), full.names = TRUE))
+    out_list <- lapply(in_list, function(fin_list){
+      somenone::process_in_list(fin_list = fin_list,
+                                which_genome = which_genome,
+                                pp_match = pp_match,
+                                cgc_gr = cgc_gr,
+                                work_dir = work_dir)
     })
-    somenone::output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".CGC"), cgc_gr = cgc_gr)
+    somenone::output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".CGC"), cgc_gr = cgc_gr, work_dir = work_dir)
   }
 
   ##using ENS annotation otherwise/also
   ##set input list based on file pattern
   print("Working on ENS")
-  in_list <- as.list(dir(pattern = pattern))
-  out_list <- lapply(in_list, function(f){
-    somenone::process_in_list(f, which_genome, cgc_gr = NULL)
+  in_list <- as.list(dir(work_dir, pattern = cncf_match, full.names = TRUE))
+  out_list <- lapply(in_list, function(fin_list){
+    somenone::process_in_list(fin_list, which_genome, pp_match, cgc_gr = NULL, work_dir = work_dir)
   })
 
-  somenone::output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".ENS"))
+  somenone::output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".ENS"), work_dir = work_dir)
 }
 
 #' Processing list of Facets input
 #'
-#' @param in_list of data from Facets
+#' @param fin_list of data from Facets
 #' @param which_genome genoem assembly being used "hg19" or "hg38"
+#' @param pp_match character path to a ploidy/purity format output of facets
 #' @param cgc_gr GRanges of cancer gene census from COSMIC
+#' @param work_dir chanracter dir in which files found
 #' @return purity-ploidy dataframe, also write rds used
 #' @export
 
-process_in_list <- function(in_list, which_genome, cgc_gr){
+process_in_list <- function(fin_list, which_genome, pp_match, cgc_gr, work_dir){
 
   ##allow CGC, else full Ensembl annotations
   anno <- "ENS"
@@ -96,13 +112,18 @@ process_in_list <- function(in_list, which_genome, cgc_gr){
   }
 
   ##iterate over samples
-  for(samp in 1:length(in_list)){
-    jointseg <- in_list[[samp]]
-    sampleID <- out_name <- stringr::str_split(jointseg, "\\.")[[1]][1]
-    out_ext <- gsub(".tsv", "", jointseg)
+  for(samp in 1:length(fin_list)){
+    jointseg <- fin_list[[samp]]
+    sampleID <- out_name <- stringr::str_split(
+                              rev(strsplit(jointseg, "/")[[1]])[1],
+                              "\\.")[[1]][1]
 
     ##also read and store ploidy:
-    ploidypurity <- dir(pattern = paste0(sampleID, ".fit_ploidy_purity.tsv"))
+    ploidypurity <- grep(sampleID, dir(work_dir, pattern = pp_match, full.names = TRUE), value = TRUE)
+    if(!file.exists(ploidypurity)){
+      stop("Ploidypurity file not found")
+    }
+
     ploidy <- as.vector(utils::read.table(ploidypurity)[2,1])
     purity <- as.vector(utils::read.table(ploidypurity)[2,2])
     pp_df <- data.frame(PLOIDY = ploidy, PURITY = purity)
@@ -111,7 +132,7 @@ process_in_list <- function(in_list, which_genome, cgc_gr){
 
     ##run function to make GRangesList
     ##(jointsegs_in, which_genome, cgc_gr = NULL, anno = NULL, bsgenome = NULL)
-    grl <- somenone::facets_jointsegs_parse_to_gr(jointseg, sampleID, which_genome, anno = anno, cgc_gr = cgc_gr)
+    grl <- somenone::facets_jointsegs_parse_to_gr(jointseg, sampleID, which_genome, anno = anno, cgc_gr = cgc_gr, work_dir = work_dir)
   }
   return(list(grl, pp_df))
 }
@@ -125,10 +146,11 @@ process_in_list <- function(in_list, which_genome, cgc_gr){
 #' @param cgc_gr GRanges object of cancer gene census from COSMIC
 #' @param anno annotation strategy, "ENS" or "CGC"
 #' @param bsgenome which version of bsgenome to use
+#' @param work_dir character path of where files should be found, written (default: ./)
 #' @return a GRanges object with annotated jointsegs from input
 #' @export
 
-facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno = NULL, cgc_gr = NULL, bsgenome = NULL){
+facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno = NULL, cgc_gr = NULL, bsgenome = NULL, work_dir){
 
   ##bed file from: https://cancer.sanger.ac.uk/census
   ##NB requires login hence not provided (but parameters exist to supply
@@ -173,8 +195,8 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
 
     ##rename S4Vectors::mcols
     names(S4Vectors::mcols(gr_anno)) <- c(names(S4Vectors::mcols(gr_anno))[1:9], "Total_Copy_Number", "Minor_Copy_Number", gene_symbols)
-    readr::write_tsv(as.data.frame(gr_anno), file = paste0(sampleID, ".facets.CNA.ENS.tsv"))
-    saveRDS(gr_anno, file = paste0(sampleID, ".facets.CNA.ENS.RData"))
+    readr::write_tsv(as.data.frame(gr_anno), file = paste0(work_dir, "/", sampleID, ".facets.CNA.ENS.tsv"))
+    saveRDS(gr_anno, file = paste0(work_dir, "/", sampleID, ".facets.CNA.ENS.RData"))
   }
 
   if(anno == "CGC"){
@@ -183,8 +205,8 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
 
     ##rename S4Vectors::mcols
     names(S4Vectors::mcols(gr_anno)) <- c(names(S4Vectors::mcols(gr_anno))[1:9], "Total_Copy_Number", "Minor_Copy_Number", "CGC_SYMBOL", "n_CGC_SYMBOLs")
-    readr::write_tsv(as.data.frame(gr_anno), file = paste0(sampleID, ".facets.CNA.CGC.tsv"))
-    saveRDS(gr_anno, file = paste0(sampleID, ".facets.CNA.CGC.RData"))
+    readr::write_tsv(as.data.frame(gr_anno), file = paste0(work_dir, "/", sampleID, ".facets.CNA.CGC.tsv"))
+    saveRDS(gr_anno, file = paste0(work_dir, "/", sampleID, ".facets.CNA.CGC.RData"))
   }
 
   return(gr_anno)
@@ -270,10 +292,12 @@ anno_cgc_cna <- function(gr, cgc_gr, which_genome){
 #' @param dict_file dictionary file of fasta used to align BAMs
 #' @param which_genome the genome assembly used, "hg19" or "hg38"
 #' @param tag runID and annotation strategy, "ENS" or "CGC"
+#' @param cgc_gr GRanges of cancer gene census
+#' @param work_dir character path of where files should be found, written
 #' @return none writes output files
 #' @export
 
-output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc_gr = NULL){
+output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc_gr = NULL, work_dir){
 
   ##separate elements in list object into list objects
   facets_list <- lapply(out_list, function(f){
@@ -316,7 +340,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
     GenomeInfoDb::seqinfo(cna_master_anno_gr) <- GenomeInfoDb::seqinfo(cna_list[[1]])
     cna_master_anno_df <- as.data.frame(cna_master_anno_gr)
     cna_master_anno_df$width <- cna_master_anno_df$end - cna_master_anno_df$start
-    readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".facets.CNA.master.tsv"))
+    readr::write_tsv(cna_master_anno_df, file = paste0(work_dir, "/", tag, ".facets.CNA.master.tsv"))
 
     ##write output of CNA analysis to XLSX
     cna_df_list <- lapply(cna_list, as.data.frame)
@@ -332,13 +356,13 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
     summ_tb <- somenone::summarise_master(cna_master_anno_gr)
     cna_df_list_na$summary <- as.data.frame(summ_tb)
 
-    openxlsx::write.xlsx(cna_df_list_na, file = paste0(tag, ".facets.CNA.full.xlsx"))
+    openxlsx::write.xlsx(cna_df_list_na, file = paste0(work_dir, "/", tag, ".facets.CNA.full.xlsx"))
 
     ##plot
-    somenone::plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL)
+    somenone::plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL, work_dir)
   } else {
-    cna_master_anno_df <- as.data.frame(cna_master_anno_gr)
-    readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".facets.CNA.master.tsv"))
+    cna_master_df <- as.data.frame(cna_master_gr)
+    readr::write_tsv(cna_master_df, file = paste0(work_dir, "/", tag, ".facets.CNA.master.tsv"))
   }
 }
 
@@ -353,12 +377,13 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
 #' @param write_out runID and annotation strategy, "ENS" or "CGC"
 #' @param max_cna_maxd runID and annotation strategy, "ENS" or "CGC"
 #' @param sample_map named vector, names are all in samples, elements are new names
+#' @param work_dir character path of where files should be found, written
 #' @return none writes output files
 #' @export
 
-plot_out_list <- function(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL){
+plot_out_list <- function(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL, work_dir){
 
-  if(length(dir(pattern = paste0(tag, ".facets_consensus.plot.pdf"))) == 1){
+  if(length(dir(pattern = paste0(work_dir, "/", tag, ".facets_consensus.plot.pdf"))) == 1){
     print(paste0("tag: ", tag, " has already been used, please use another"))
   } else {
 
@@ -375,12 +400,12 @@ plot_out_list <- function(cna_list, pp_list, dict_file, which_genome, tag, sampl
           cna_dfb$sampleID <- as.vector(sample_map[samples[x]])
         }
         if(write_out == TRUE){
-          readr::write_tsv(cna_dfb, file = paste0(samples[x],".facets.CNA.jointsegs.tsv"))
+          readr::write_tsv(cna_dfb,file = paste0(work_dir, "/", samples[x],".facets.CNA.jointsegs.tsv"))
         }
         return(cna_dfb)
       } else {
         if(write_out == TRUE){
-          readr::write_tsv(as.data.frame(cna_list[[x]]), file = paste0(samples[x], ".facets.CNA.jointsegs.tsv"))
+          readr::write_tsv(as.data.frame(cna_list[[x]]), file = paste0(work_dir, "/", samples[x], ".facets.CNA.jointsegs.tsv"))
         }
       }
     })
@@ -481,9 +506,9 @@ plot_out_list <- function(cna_list, pp_list, dict_file, which_genome, tag, sampl
                          legend.position="none") +
              ggplot2::facet_grid(sample ~ .)
 
-      ggplot2::ggsave(filename = paste0(tag, ".facets_consensus.plot.pdf"), plot = ggp)
+      ggplot2::ggsave(filename = paste0(work_dir, "/", tag, ".facets_consensus.plot.pdf"), plot = ggp)
     } else {
-      pdf(paste0(tag, ".EMPTY.facets_consensus.plot.pdf"))
+      pdf(paste0(work_dir, "/", tag, ".EMPTY.facets_consensus.plot.pdf"))
       plot.new()
       dev.off()
     }
@@ -722,10 +747,11 @@ master_mcols <- function(gr_list, gr_master, ps_vec){
 #' @param write_out write tsv output?
 #' @param max_cna_maxd maximum CNA to show on plot
 #' @param sample_map named vector, names are filenames before first dot, elements are new names
+#' @param work_dir character path of where files should be found, written (default: ./)
 #' @return none, prints a plot and writes output if flag used
 #' @export
 
-plot_from_tsv <- function(pattern, dict_file, which_genome, tag, write_out = FALSE, max_cna_maxd = 8, sample_map = NULL){
+plot_from_tsv <- function(pattern, dict_file, which_genome, tag, write_out = FALSE, max_cna_maxd = 8, sample_map = NULL, work_dir){
   files_in <- dir(pattern = pattern)
   out_list <- lapply(files_in, function(f){
     ff <- readr::read_tsv(f)
@@ -752,7 +778,7 @@ plot_from_tsv <- function(pattern, dict_file, which_genome, tag, write_out = FAL
     sort(unique(c(fo)))
   })
 
-  plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd, sample_map)
+  somenone::plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd, sample_map, work_dir)
 }
 
 #' Summarise master table

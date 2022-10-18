@@ -4,14 +4,18 @@
 \alias{process_in_list}
 \title{Processing list of Facets input}
 \usage{
-process_in_list(in_list, which_genome, cgc_gr)
+process_in_list(fin_list, which_genome, pp_match, cgc_gr, work_dir)
 }
 \arguments{
-\item{in_list}{of data from Facets}
+\item{fin_list}{of data from Facets}
 
 \item{which_genome}{genoem assembly being used "hg19" or "hg38"}
 
+\item{pp_match}{character path to a ploidy/purity format output of facets}
+
 \item{cgc_gr}{GRanges of cancer gene census from COSMIC}
+
+\item{work_dir}{chanracter dir in which files found}
 }
 \value{
 purity-ploidy dataframe, also write rds used

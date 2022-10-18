@@ -10,7 +10,8 @@ facets_jointsegs_parse_to_gr(
   which_genome,
   anno = NULL,
   cgc_gr = NULL,
-  bsgenome = NULL
+  bsgenome = NULL,
+  work_dir
 )
 }
 \arguments{
@@ -26,6 +27,8 @@ facets_jointsegs_parse_to_gr(
 \item{cgc_gr}{GRanges object of cancer gene census from COSMIC}
 
 \item{bsgenome}{which version of bsgenome to use}
+
+\item{work_dir}{character path of where files should be found, written (default: ./)}
 }
 \value{
 a GRanges object with annotated jointsegs from input

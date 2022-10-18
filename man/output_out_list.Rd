@@ -4,7 +4,15 @@
 \alias{output_out_list}
 \title{Plotting and Output from 'out_list' object}
 \usage{
-output_out_list(out_list, in_list, dict_file, which_genome, tag, cgc_gr = NULL)
+output_out_list(
+  out_list,
+  in_list,
+  dict_file,
+  which_genome,
+  tag,
+  cgc_gr = NULL,
+  work_dir
+)
 }
 \arguments{
 \item{out_list}{resulting from process_in_list}
@@ -16,6 +24,10 @@ output_out_list(out_list, in_list, dict_file, which_genome, tag, cgc_gr = NULL)
 \item{which_genome}{the genome assembly used, "hg19" or "hg38"}
 
 \item{tag}{runID and annotation strategy, "ENS" or "CGC"}
+
+\item{cgc_gr}{GRanges of cancer gene census}
+
+\item{work_dir}{character path of where files should be found, written}
 }
 \value{
 none writes output files

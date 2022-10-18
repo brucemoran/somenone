@@ -4,10 +4,12 @@
 \alias{facets_cna_call}
 \title{Standard Facets CNA call wrapper}
 \usage{
-facets_cna_call(input_csv)
+facets_cna_call(input_csv, work_dir = NULL)
 }
 \arguments{
 \item{input_csv}{path to CSV format file as per requirements of Facets}
+
+\item{work_dir}{character path of where files should be found, written (default: ./)}
 }
 \value{
 none, saves plots and writes output in current dir

@@ -13,7 +13,8 @@ plot_out_list(
   samples,
   write_out = TRUE,
   max_cna_maxd = 8,
-  sample_map = NULL
+  sample_map = NULL,
+  work_dir
 )
 }
 \arguments{
@@ -34,6 +35,8 @@ plot_out_list(
 \item{max_cna_maxd}{runID and annotation strategy, "ENS" or "CGC"}
 
 \item{sample_map}{named vector, names are all in samples, elements are new names}
+
+\item{work_dir}{character path of where files should be found, written}
 }
 \value{
 none writes output files

@@ -11,7 +11,8 @@ plot_from_tsv(
   tag,
   write_out = FALSE,
   max_cna_maxd = 8,
-  sample_map = NULL
+  sample_map = NULL,
+  work_dir
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ plot_from_tsv(
 \item{max_cna_maxd}{maximum CNA to show on plot}
 
 \item{sample_map}{named vector, names are filenames before first dot, elements are new names}
+
+\item{work_dir}{character path of where files should be found, written (default: ./)}
 }
 \value{
 none, prints a plot and writes output if flag used

@@ -1,0 +1,3 @@
+chrom	seg	num.mark	nhet	cnlr.median	mafR	segclust	cnlr.median.clust	mafR.clust	start	end	cf.em	tcn.em	lcn.em
+7	1	1	0	0.008	0	1	0.001	NA	101002499	101002499	0.3	2	NA
+12	2	1	0	-0.005	0	1	0.001	NA	66217205	66217205	0.3	2	NA
