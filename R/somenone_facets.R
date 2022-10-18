@@ -162,7 +162,7 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
                 ranges = IRanges::IRanges(start = js$start, end = js$end),
                 mcols = js[, c("seg", "num.mark", "nhet", "cnlr.median", "mafR", "segclust", "cnlr.median.clust", "mafR.clust", "cf.em", "tcn.em", "lcn.em")])
 
-  GenomeInfoDb::seqlevels(gr) <- GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "NCBI")
+  GenomeInfoDb::seqlevels(gr) <- GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "NCBI")[1,]
   GenomeInfoDb::seqinfo(gr) <- GenomeInfoDb::seqinfo(bsgenome)[GenomeInfoDb::seqlevels(gr)]
 #  GenomeInfoDb::seqlevelsStyle(gr) <- "NCBI"
 
@@ -304,37 +304,39 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
   cna_master_gr <- master_intersect_cna_grlist(cna_list, ps_vec, which_genome)
 
   ##annotate
-  anno <- "ENS"
-  if(!is.null(cgc_gr)){
-    anno <- "CGC"
-    cna_master_anno_gr <-  anno_cgc_cna(cna_master_gr, cgc_gr, which_genome)
-  } else {
-    cna_master_anno_gr <-  anno_ens_cna(cna_master_gr, which_genome)
+  if(length(cna_master_gr)>0){
+    anno <- "ENS"
+    if(!is.null(cgc_gr)){
+      anno <- "CGC"
+      cna_master_anno_gr <-  anno_cgc_cna(cna_master_gr, cgc_gr, which_genome)
+    } else {
+      cna_master_anno_gr <-  anno_ens_cna(cna_master_gr, which_genome)
+    }
+
+    GenomeInfoDb::seqinfo(cna_master_anno_gr) <- GenomeInfoDb::seqinfo(cna_list[[1]])
+    cna_master_anno_df <- as.data.frame(cna_master_anno_gr)
+    cna_master_anno_df$width <- cna_master_anno_df$end - cna_master_anno_df$start
+    readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".facets.CNA.master.tsv"))
+
+    ##write output of CNA analysis to XLSX
+    cna_df_list <- lapply(cna_list, as.data.frame)
+    cna_df_list$master_anno_df <- cna_master_anno_df
+
+    ##replace NAs
+    cna_df_list_na <- lapply(cna_df_list, function(f){
+      f[is.na(f)] <- "-"
+      return(tibble::as_tibble(f))
+    })
+
+    ##summarise master gr
+    summ_tb <- summarise_master(cna_master_anno_gr)
+    cna_df_list_na$summary <- as.data.frame(summ_tb)
+
+    openxlsx::write.xlsx(cna_df_list_na, file = paste0(tag, ".facets.CNA.full.xlsx"))
+
+    ##plot
+    plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL)
   }
-
-  GenomeInfoDb::seqinfo(cna_master_anno_gr) <- GenomeInfoDb::seqinfo(cna_list[[1]])
-  cna_master_anno_df <- as.data.frame(cna_master_anno_gr)
-  cna_master_anno_df$width <- cna_master_anno_df$end - cna_master_anno_df$start
-  readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".facets.CNA.master.tsv"))
-
-  ##write output of CNA analysis to XLSX
-  cna_df_list <- lapply(cna_list, as.data.frame)
-  cna_df_list$master_anno_df <- cna_master_anno_df
-
-  ##replace NAs
-  cna_df_list_na <- lapply(cna_df_list, function(f){
-    f[is.na(f)] <- "-"
-    return(tibble::as_tibble(f))
-  })
-
-  ##summarise master gr
-  summ_tb <- summarise_master(cna_master_anno_gr)
-  cna_df_list_na$summary <- as.data.frame(summ_tb)
-
-  openxlsx::write.xlsx(cna_df_list_na, file = paste0(tag, ".facets.CNA.full.xlsx"))
-
-  ##plot
-  plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL)
 }
 
 #' Plotting from 'out_list' object
@@ -594,7 +596,9 @@ master_intersect_cna_grlist <- function(gr_list, ps_vec, which_genome){
 
   }
 
-  join_chr_all_gr <- loh_summary(join_chr_all_gr)
+  if(length(join_chr_all_gr)!=0){
+    join_chr_all_gr <- loh_summary(join_chr_all_gr)
+  }
   return(join_chr_all_gr)
 }
 
