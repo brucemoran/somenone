@@ -63,9 +63,9 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
                                                       })))
     in_list <- as.list(dir(pattern = paste0(pattern, "$")))
     out_list <- lapply(in_list, function(f){
-      process_in_list(f, which_genome, cgc_gr)
+      somenone::process_in_list(f, which_genome, cgc_gr)
     })
-    output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".CGC"), cgc_gr = cgc_gr)
+    somenone::output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".CGC"), cgc_gr = cgc_gr)
   }
 
   ##using ENS annotation otherwise/also
@@ -73,10 +73,10 @@ facets_cna_consensus <- function(pattern, dict_file, tag, cgc_bed = NULL) {
   print("Working on ENS")
   in_list <- as.list(dir(pattern = pattern))
   out_list <- lapply(in_list, function(f){
-    process_in_list(f, which_genome, cgc_gr = NULL)
+    somenone::process_in_list(f, which_genome, cgc_gr = NULL)
   })
 
-  output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".ENS"))
+  somenone::output_out_list(out_list, in_list, dict_file, which_genome, tag = paste0(tag, ".ENS"))
 }
 
 #' Processing list of Facets input
@@ -111,7 +111,7 @@ process_in_list <- function(in_list, which_genome, cgc_gr){
 
     ##run function to make GRangesList
     ##(jointsegs_in, which_genome, cgc_gr = NULL, anno = NULL, bsgenome = NULL)
-    grl <- facets_jointsegs_parse_to_gr(jointseg, sampleID, which_genome, anno = anno, cgc_gr = cgc_gr)
+    grl <- somenone::facets_jointsegs_parse_to_gr(jointseg, sampleID, which_genome, anno = anno, cgc_gr = cgc_gr)
   }
   return(list(grl, pp_df))
 }
@@ -179,7 +179,7 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
 
   if(anno == "CGC"){
     print("Annotating Cancer Gene Census genes")
-    gr_anno <- anno_cgc_cna(gr, cgc_gr, which_genome)
+    gr_anno <- somenone::anno_cgc_cna(gr, cgc_gr, which_genome)
 
     ##rename S4Vectors::mcols
     names(S4Vectors::mcols(gr_anno)) <- c(names(S4Vectors::mcols(gr_anno))[1:9], "Total_Copy_Number", "Minor_Copy_Number", "CGC_SYMBOL", "n_CGC_SYMBOLs")
@@ -301,7 +301,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
               "Total_Copy_Number",
               "Minor_Copy_Number")
 
-  cna_master_gr <- master_intersect_cna_grlist(cna_list, ps_vec, which_genome)
+  cna_master_gr <- somenone::master_intersect_cna_grlist(cna_list, ps_vec, which_genome)
 
   ##annotate
   if(length(cna_master_gr)>0){
@@ -329,13 +329,16 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
     })
 
     ##summarise master gr
-    summ_tb <- summarise_master(cna_master_anno_gr)
+    summ_tb <- somenone::summarise_master(cna_master_anno_gr)
     cna_df_list_na$summary <- as.data.frame(summ_tb)
 
     openxlsx::write.xlsx(cna_df_list_na, file = paste0(tag, ".facets.CNA.full.xlsx"))
 
     ##plot
-    plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL)
+    somenone::plot_out_list(cna_list, pp_list, dict_file, which_genome, tag, samples, write_out = TRUE, max_cna_maxd = 8, sample_map = NULL)
+  } else {
+    cna_master_anno_df <- as.data.frame(cna_master_anno_gr)
+    readr::write_tsv(cna_master_anno_df, file = paste0(tag, ".facets.CNA.master.tsv"))
   }
 }
 
