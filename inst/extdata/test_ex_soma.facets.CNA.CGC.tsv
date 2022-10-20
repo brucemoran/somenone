@@ -1,3 +1,0 @@
-seqnames	start	end	width	strand	mcols.seg	mcols.num.mark	mcols.nhet	mcols.cnlr.median	mcols.mafR	mcols.segclust	mcols.cnlr.median.clust	mcols.mafR.clust	mcols.cf.em	Total_Copy_Number	Minor_Copy_Number	CGC_SYMBOL	n_CGC_SYMBOLs
-7	101002499	101002499	1	*	1	1	0	0.008	0	1	0.001	NA	0.3	2	NA	-	-
-12	66217205	66217205	1	*	2	1	0	-0.005	0	1	0.001	NA	0.3	2	NA	-	-
