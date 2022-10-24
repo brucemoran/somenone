@@ -185,7 +185,11 @@ facets_jointsegs_parse_to_gr <- function(jointseg, sampleID, which_genome, anno 
                 mcols = js[, c("seg", "num.mark", "nhet", "cnlr.median", "mafR", "segclust", "cnlr.median.clust", "mafR.clust", "cf.em", "tcn.em", "lcn.em")])
 
   if(is.matrix(GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "NCBI"))){
-    GenomeInfoDb::seqlevels(gr) <- GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "NCBI")[1,]
+    if(dim(GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "NCBI"))[1]>1) {
+      GenomeInfoDb::seqlevels(gr) <- GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "NCBI")[1,]
+    } else {
+      GenomeInfoDb::seqlevels(gr) <- GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "NCBI")
+    }
   } else {
     GenomeInfoDb::seqlevels(gr) <- GenomeInfoDb::mapSeqlevels(GenomeInfoDb::seqlevels(gr), "NCBI")
   }
