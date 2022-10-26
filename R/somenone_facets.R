@@ -318,7 +318,7 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
   })
 
   samples <- names(pp_list) <- names(facets_list) <- unlist(lapply(in_list, function(f){
-    stringr::str_split(f,"\\.")[[1]][1]
+    stringr::str_split(basename(f),"\\.")[[1]][1]
   }))
 
   ##list of only those CNA (i.e. not TCN == 2)
@@ -340,9 +340,9 @@ output_out_list <- function(out_list, in_list, dict_file, which_genome, tag, cgc
     anno <- "ENS"
     if(!is.null(cgc_gr)){
       anno <- "CGC"
-      cna_master_anno_gr <-  anno_cgc_cna(cna_master_gr, cgc_gr, which_genome)
+      cna_master_anno_gr <-  somenone::anno_cgc_cna(cna_master_gr, cgc_gr, which_genome)
     } else {
-      cna_master_anno_gr <-  anno_ens_cna(cna_master_gr, which_genome)
+      cna_master_anno_gr <-  somenone::anno_ens_cna(cna_master_gr, which_genome)
     }
 
     GenomeInfoDb::seqinfo(cna_master_anno_gr) <- GenomeInfoDb::seqinfo(cna_list[[1]])
@@ -426,11 +426,11 @@ plot_out_list <- function(cna_list, pp_list, dict_file, which_genome, tag, sampl
     sqn[sqn=="Y"] <- 24
     cna_df$seqnames <- sqn
 
-    seqlengths <- seqlengths_df(unique(cna_df[,1]), dict_file, which_genome)
+    seqlengths <- somenone::seqlengths_df(unique(cna_df[,1]), dict_file, which_genome)
 
     cna_df <- cna_df[cna_df$seqnames %in% seqlengths$seqnames,]
     cum_sum_add <- unlist(apply(cna_df, 1, function(x) {
-                cum_sum_off <- seqlengths$cum_sum_0[rownames(seqlengths) %in% x[1]]
+                cum_sum_off <- seqlengths$cum_sum_0[seqlengths$seqnames %in% x[1]]
                 return(cum_sum_off)
     }))
 
